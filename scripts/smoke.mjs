@@ -31,7 +31,9 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
 try {
   // --- signed out ----------------------------------------------------------
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1500); // let the session read settle
+  // React needs to attach handlers before a click registers; 'load' alone
+  // fires too early and the click silently does nothing.
+  await page.waitForTimeout(4000); // let the session read settle
 
   record(
     'signed-out visitor lands on sign-in',
@@ -72,20 +74,27 @@ try {
 
   // --- sign in -------------------------------------------------------------
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(4000);
   await page.getByLabel('Email', { exact: true }).fill(EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-  await page.getByText('Sign in', { exact: true }).last().click();
-  await page.waitForTimeout(4000);
+  // Role selector rather than text: the text also matches the heading, and
+  // the button is the thing under test.
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  // Wait for the condition, not a fixed delay — auth round-trip time varies.
+  await page.waitForURL((u) => !u.pathname.includes('sign-in'), { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
 
   record('sign-in leaves the auth screens', !page.url().includes('/sign-in'), page.url());
   record(
-    'home screen renders after sign-in',
-    await page.getByText('Nothing to show yet').isVisible().catch(() => false),
+    'home dashboard renders after sign-in',
+    await page.getByText('A little progress adds up.').isVisible().catch(() => false),
   );
+  // Placeholder figures are acceptable only while they are unmistakably
+  // labelled. If this notice ever disappears while the sample data is still
+  // wired up, the screen is lying about whose money it shows.
   record(
-    'home shows no fabricated metrics',
-    !(await page.getByText('42,76,500').isVisible().catch(() => false)),
+    'placeholder figures carry the sample-data notice',
+    await page.getByText('Sample data', { exact: false }).first().isVisible().catch(() => false),
   );
   record(
     'future modules are marked coming soon, not live',

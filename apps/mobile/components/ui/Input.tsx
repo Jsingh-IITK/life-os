@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
+import { FocusRing } from '@/components/ui/FocusRing';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/design/theme';
 import { MIN_TOUCH_TARGET, radius, space, tabularNumbers, typography } from '@/design/tokens';
@@ -30,7 +31,8 @@ export function Input({ label, error, hint, numeric = false, ...rest }: InputPro
         {label}
       </Text>
 
-      <TextInput
+      <View>
+        <TextInput
         accessibilityLabel={label}
         placeholderTextColor={colors.textMuted}
         onFocus={(e) => {
@@ -41,21 +43,24 @@ export function Input({ label, error, hint, numeric = false, ...rest }: InputPro
           setFocused(false);
           rest.onBlur?.(e);
         }}
-        style={[
-          typography.body,
-          numeric ? tabularNumbers : null,
-          styles.input,
-          {
-            color: colors.textPrimary,
-            backgroundColor: colors.surfacePrimary,
-            borderColor,
-            // Thicker ring on focus so the indicator is visible, not just a
-            // hue change — which colour-blind users may not perceive.
-            borderWidth: focused || error ? 2 : 1,
-          },
-        ]}
-        {...rest}
-      />
+          style={[
+            typography.body,
+            numeric ? tabularNumbers : null,
+            styles.input,
+            {
+              color: colors.textPrimary,
+              backgroundColor: colors.surfacePrimary,
+              borderColor,
+              // Constant width: see FocusRing for why focus must not reflow.
+              borderWidth: error ? 2 : 1,
+            },
+          ]}
+          {...rest}
+        />
+        {/* Visible focus indicator that does not depend on colour alone and
+            does not change the element's box. */}
+        <FocusRing visible={focused} radius={radius.md} />
+      </View>
 
       {error ? (
         <Text variant="caption" color="danger" style={styles.message}>

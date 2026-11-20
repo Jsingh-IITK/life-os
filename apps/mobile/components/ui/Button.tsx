@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
+import { FocusRing } from '@/components/ui/FocusRing';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/design/theme';
 import { MIN_TOUCH_TARGET, radius, space } from '@/design/tokens';
@@ -69,15 +70,14 @@ export function Button({
           paddingHorizontal: size === 'small' ? space[3] : space[4],
           backgroundColor:
             variant === 'ghost' && (hovered || pressed) ? colors.brandSubtle : tone.bg,
-          borderColor: focused ? colors.brandPrimary : tone.border,
+          borderColor: tone.border,
           borderWidth: variant === 'primary' ? 0 : 1,
           opacity: inactive ? 0.45 : pressed ? 0.85 : hovered ? 0.92 : 1,
           width: fullWidth ? '100%' : undefined,
         },
-        // Visible focus indicator, required for keyboard navigation.
-        focused ? { borderWidth: 2 } : null,
         style,
       ]}>
+      <FocusRing visible={focused} radius={radius.md} />
       {loading ? (
         <View style={styles.row}>
           <ActivityIndicator

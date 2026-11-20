@@ -6,6 +6,8 @@ import { useColors, useLayout } from '@/design/theme';
 import { CONTENT_MAX_WIDTH, space } from '@/design/tokens';
 
 export interface ScreenProps extends ViewProps {
+  /** Small uppercase line above the title — the mockup's date label. */
+  eyebrow?: string;
   title?: string;
   subtitle?: string;
   scroll?: boolean;
@@ -15,7 +17,7 @@ export interface ScreenProps extends ViewProps {
  * Page frame: themed canvas, responsive padding, and a constrained content
  * column so text does not stretch across a wide desktop window.
  */
-export function Screen({ title, subtitle, scroll = true, children, style, ...rest }: ScreenProps) {
+export function Screen({ eyebrow, title, subtitle, scroll = true, children, style, ...rest }: ScreenProps) {
   const colors = useColors();
   const { isMobile, isWide } = useLayout();
   const insets = useSafeAreaInsets();
@@ -26,7 +28,14 @@ export function Screen({ title, subtitle, scroll = true, children, style, ...res
     <View style={[styles.column, { maxWidth: CONTENT_MAX_WIDTH, padding }, style]} {...rest}>
       {title ? (
         <View style={styles.header}>
-          <Text variant={isMobile ? 'pageHeading' : 'display'}>{title}</Text>
+          {eyebrow ? (
+            <Text variant="caption" color="textSecondary" style={styles.eyebrow}>
+              {eyebrow}
+            </Text>
+          ) : null}
+          <Text variant={isMobile ? 'pageHeading' : 'display'} style={styles.title}>
+            {title}
+          </Text>
           {subtitle ? (
             <Text variant="secondary" color="textSecondary" style={styles.subtitle}>
               {subtitle}
@@ -58,5 +67,7 @@ const styles = StyleSheet.create({
   scrollContent: { alignItems: 'center' },
   column: { width: '100%', gap: space[5] },
   header: { gap: space[1] },
+  eyebrow: { fontSize: 11, letterSpacing: 0.2 },
+  title: { letterSpacing: -0.9 },
   subtitle: { maxWidth: 560 },
 });
