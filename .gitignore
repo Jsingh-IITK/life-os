@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Expo
+.expo/
+.expo-shared/
+web-build/
+android/
+ios/
+*.apk
+*.aab
+
+# Environment / secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.keystore
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+.supabase/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

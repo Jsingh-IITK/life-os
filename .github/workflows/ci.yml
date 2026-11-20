@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Boundary rules live in eslint.config.mjs: the core engines must stay
+      # pure, and the two domain modules must not import each other.
+      - name: Lint (includes module boundary enforcement)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      # The financial and training invariants are unit tests, so a violation
+      # fails here rather than surfacing as a wrong number in the app.
+      - name: Test
+        run: pnpm -r test
+
+  build-web:
+    name: Web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Catches Metro resolution problems that typecheck cannot see — notably
+      # anything the bundler resolves differently from tsc.
+      - name: Export web bundle
+        working-directory: apps/mobile
+        run: pnpm expo export --platform web --output-dir ../../.web-build

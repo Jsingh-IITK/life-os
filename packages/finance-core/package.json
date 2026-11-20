@@ -1,0 +1,20 @@
+{
+  "name": "@life-os/finance-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic finance engine: double-entry postings, budgets, lots, valuation, net worth. No I/O.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  }
+}
