@@ -75,9 +75,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Pinned, not "latest": resolving latest hits the GitHub API and gets
+      # rate-limited on shared runners, and an unpinned CLI makes the schema
+      # job non-reproducible — a CLI change could alter results with no commit.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.2.0
 
       # Runners have Docker, so this is where the schema is actually executed
       # rather than merely parsed. Postgres only — the full stack is not needed.
