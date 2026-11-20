@@ -1,15 +1,9 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Text, View, useThemeColor } from '@/components/Themed';
+import { Button, Card, Input, Text } from '@/components/ui';
+import { useColors } from '@/design/theme';
+import { space } from '@/design/tokens';
 
 export interface AuthFormProps {
   title: string;
@@ -22,14 +16,6 @@ export interface AuthFormProps {
   footer?: React.ReactNode;
 }
 
-/**
- * Shared layout for the auth screens.
- *
- * Deliberately plain: the design system is proposed later, and styling these
- * now would mean redoing them. What is not deferred is the behaviour that is
- * easy to get wrong — autofill hints, keyboard types, disabled state while
- * in flight, and errors surfaced rather than swallowed.
- */
 export function AuthForm({
   title,
   subtitle,
@@ -38,14 +24,12 @@ export function AuthForm({
   onSubmit,
   footer,
 }: AuthFormProps) {
+  const colors = useColors();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const borderColor = useThemeColor({}, 'tabIconDefault');
-  const textColor = useThemeColor({}, 'text');
 
   const canSubmit = email.trim().length > 0 && (!withPassword || password.length > 0) && !busy;
 
@@ -66,63 +50,77 @@ export function AuthForm({
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.backgroundPrimary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.column}>
+          <View style={styles.brand}>
+            <Text variant="caption" color="textMuted">
+              LIFE OS
+            </Text>
+            <Text variant="pageHeading">{title}</Text>
+            <Text variant="secondary" color="textSecondary">
+              {subtitle}
+            </Text>
+          </View>
 
-        <TextInput
-          style={[styles.input, { borderColor, color: textColor }]}
-          placeholder="you@example.com"
-          placeholderTextColor={borderColor}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          editable={!busy}
-          onSubmitEditing={withPassword ? undefined : handleSubmit}
-          returnKeyType={withPassword ? 'next' : 'go'}
-        />
+          <Card style={styles.card}>
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              editable={!busy}
+              returnKeyType={withPassword ? 'next' : 'go'}
+              onSubmitEditing={withPassword ? undefined : handleSubmit}
+            />
 
-        {withPassword ? (
-          <TextInput
-            style={[styles.input, { borderColor, color: textColor }]}
-            placeholder="Password"
-            placeholderTextColor={borderColor}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="current-password"
-            textContentType="password"
-            editable={!busy}
-            onSubmitEditing={handleSubmit}
-            returnKeyType="go"
-          />
-        ) : null}
+            {withPassword ? (
+              <Input
+                label="Password"
+                placeholder="••••••••"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="current-password"
+                textContentType="password"
+                editable={!busy}
+                returnKeyType="go"
+                onSubmitEditing={handleSubmit}
+              />
+            ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+            {/* Status is carried by the text itself as well as its colour,
+                so it does not depend on colour perception alone. */}
+            {error ? (
+              <Text variant="secondary" color="danger">
+                {error}
+              </Text>
+            ) : null}
+            {notice ? (
+              <Text variant="secondary" color="success">
+                {notice}
+              </Text>
+            ) : null}
 
-        <Pressable
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={({ pressed }) => [
-            styles.button,
-            { opacity: !canSubmit ? 0.4 : pressed ? 0.8 : 1 },
-          ]}>
-          {busy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonLabel}>{submitLabel}</Text>
-          )}
-        </Pressable>
+            <Button
+              label={submitLabel}
+              onPress={handleSubmit}
+              disabled={!canSubmit}
+              loading={busy}
+              size="large"
+              fullWidth
+            />
+          </Card>
 
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+          {footer ? <View style={styles.footer}>{footer}</View> : null}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -130,35 +128,9 @@ export function AuthForm({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-    maxWidth: 420,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  title: { fontSize: 26, fontWeight: '600' },
-  subtitle: { fontSize: 14, opacity: 0.6, marginTop: 6, marginBottom: 24 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: '#2f95dc',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  buttonLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  error: { color: '#d7263d', fontSize: 13, marginBottom: 8 },
-  notice: { color: '#1b7f4b', fontSize: 13, marginBottom: 8 },
-  footer: { marginTop: 20, alignItems: 'center', gap: 10, backgroundColor: 'transparent' },
+  scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: space[4] },
+  column: { width: '100%', maxWidth: 420, gap: space[5] },
+  brand: { gap: space[1] },
+  card: { gap: space[4] },
+  footer: { alignItems: 'center', gap: space[3] },
 });

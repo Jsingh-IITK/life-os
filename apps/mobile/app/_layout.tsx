@@ -1,11 +1,18 @@
-import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  useFonts,
+} from '@expo-google-fonts/inter';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { Splash } from '@/components/Splash';
-import { useColorScheme } from '@/components/useColorScheme';
+import { ThemeProvider, useTheme } from '@/design/theme';
 import { SessionProvider, useSession } from '@/lib/auth/session';
 
 export {
@@ -22,11 +29,15 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  // Inter carries the whole type scale. Four cuts rather than a variable font:
+  // React Native resolves discrete weights to concrete font files.
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -42,41 +53,54 @@ export default function RootLayout() {
   }
 
   return (
-    <SessionProvider>
-      <RootLayoutNav />
-    </SessionProvider>
+    <ThemeProvider>
+      <SessionProvider>
+        <RootLayoutNav />
+      </SessionProvider>
+    </ThemeProvider>
   );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { scheme, colors } = useTheme();
   const { session, loading } = useSession();
   const signedIn = session !== null;
 
+  // Feed the navigation theme from the same tokens, so navigator chrome
+  // (card backgrounds, transitions) matches the design system rather than
+  // falling back to React Navigation's defaults.
+  const navTheme = {
+    ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(scheme === 'dark' ? DarkTheme : DefaultTheme).colors,
+      background: colors.backgroundPrimary,
+      card: colors.surfacePrimary,
+      text: colors.textPrimary,
+      border: colors.borderPrimary,
+      primary: colors.brandPrimary,
+    },
+  };
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavThemeProvider value={navTheme}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+
       {/*
-        The navigator is always rendered. Swapping it out for a loading view
-        while the session resolves breaks route mounting entirely — the router
-        has no navigator to attach routes to, and the result looks like a
-        redirect loop rather than an error.
+        The navigator is always rendered. Swapping it for a loading view breaks
+        route mounting entirely — the router has no navigator to attach routes
+        to, which presents as a redirect loop rather than an error.
 
         Stack.Protected excludes a failing branch from the tree, so protected
-        screens are never mounted rather than mounted and hidden. While the
-        session is still unknown the signed-out branch is active, and the
-        overlay below covers that moment so a returning user never sees
-        sign-in flash past.
+        screens are never mounted. redirectTo fires when a guard fails, so each
+        branch points at the other.
 
         None of this is a security boundary: RLS is what guarantees an
         unauthenticated client can read no rows.
       */}
-      <Stack>
-        {/* redirectTo fires when the guard fails, so each branch points at
-            the other: signed out leaves the app for sign-in, signed in leaves
-            the auth screens for home. */}
+      <Stack screenOptions={{ contentStyle: { backgroundColor: colors.backgroundPrimary } }}>
         <Stack.Protected guard={signedIn} redirectTo="/sign-in">
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'About' }} />
         </Stack.Protected>
 
         <Stack.Protected guard={!signedIn} redirectTo="/">
@@ -85,6 +109,6 @@ function RootLayoutNav() {
       </Stack>
 
       {loading ? <Splash /> : null}
-    </ThemeProvider>
+    </NavThemeProvider>
   );
 }

@@ -1,20 +1,22 @@
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { Text, View } from '@/components/Themed';
+import { Text } from '@/components/ui/Text';
+import { useColors } from '@/design/theme';
+import { space } from '@/design/tokens';
 
 /**
  * Covers the app while the stored session is being read.
  *
- * Rendered as an overlay rather than instead of the navigator. Expo Router's
- * root layout must always return a navigator — returning a bare view from it
- * stops routes mounting and collapses the layout container, which looks like a
- * redirect loop and a broken page rather than an obvious error.
+ * Rendered as an overlay rather than instead of the navigator: Expo Router's
+ * root layout must always return a navigator, and returning a bare view stops
+ * routes mounting and collapses the layout.
  */
 export function Splash() {
+  const colors = useColors();
   return (
-    <View style={styles.overlay}>
-      <Text style={styles.wordmark}>Life OS</Text>
-      <ActivityIndicator size="small" style={styles.spinner} />
+    <View style={[styles.overlay, { backgroundColor: colors.backgroundPrimary }]}>
+      <Text variant="sectionHeading">Life OS</Text>
+      <ActivityIndicator size="small" color={colors.brandPrimary} style={styles.spinner} />
     </View>
   );
 }
@@ -31,6 +33,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
-  wordmark: { fontSize: 20, fontWeight: '600', opacity: 0.85 },
-  spinner: { marginTop: 16 },
+  spinner: { marginTop: space[4] },
 });

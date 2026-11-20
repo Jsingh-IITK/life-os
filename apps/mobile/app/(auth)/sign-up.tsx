@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 
 import { AuthForm } from '@/components/AuthForm';
-import { Text } from '@/components/Themed';
+import { Text } from '@/components/ui';
 import { describeAuthError } from '@/lib/auth/errors';
 import { supabase } from '@/lib/supabase';
 
@@ -24,7 +24,7 @@ export default function SignUpScreen() {
       }}
       footer={
         <Link href="/sign-in">
-          <Text style={{ color: '#2f95dc' }}>I already have an account</Text>
+          <Text variant="body" color="brandPrimary">I already have an account</Text>
         </Link>
       }
     />

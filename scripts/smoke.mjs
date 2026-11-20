@@ -73,15 +73,23 @@ try {
   // --- sign in -------------------------------------------------------------
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
-  await page.getByPlaceholder('you@example.com').fill(EMAIL);
-  await page.getByPlaceholder('Password').fill(PASSWORD);
+  await page.getByLabel('Email', { exact: true }).fill(EMAIL);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByText('Sign in', { exact: true }).last().click();
   await page.waitForTimeout(4000);
 
   record('sign-in leaves the auth screens', !page.url().includes('/sign-in'), page.url());
   record(
     'home screen renders after sign-in',
-    await page.getByText('Take-home').isVisible().catch(() => false),
+    await page.getByText('Nothing to show yet').isVisible().catch(() => false),
+  );
+  record(
+    'home shows no fabricated metrics',
+    !(await page.getByText('42,76,500').isVisible().catch(() => false)),
+  );
+  record(
+    'future modules are marked coming soon, not live',
+    await page.getByText('Coming soon', { exact: true }).isVisible().catch(() => false),
   );
 
   // --- tabs ----------------------------------------------------------------
@@ -105,13 +113,80 @@ try {
     page.url(),
   );
 
+  // --- design system -------------------------------------------------------
+  // Backgrounds live on nested surfaces, not the shell root, so assert the
+  // expected token colour appears somewhere in the rendered tree.
+  const hasBg = (rgb) =>
+    page.evaluate(
+      (want) =>
+        [...document.querySelectorAll('*')].some(
+          (el) => getComputedStyle(el).backgroundColor === want,
+        ),
+      rgb,
+    );
+  const LIGHT_CANVAS = 'rgb(247, 244, 237)'; // #F7F4ED
+  const DARK_CANVAS = 'rgb(25, 27, 25)'; // #191B19
+
+  await page.getByText('Settings', { exact: true }).first().click();
+  await page.waitForTimeout(900);
+
+  await page.getByLabel('Light theme', { exact: false }).click();
+  await page.waitForTimeout(700);
+  const lightOk = await hasBg(LIGHT_CANVAS);
+  const darkLeaked = await hasBg(DARK_CANVAS);
+  record('light theme paints the warm ivory canvas', lightOk && !darkLeaked);
+
+  await page.getByLabel('Dark theme', { exact: false }).click();
+  await page.waitForTimeout(700);
+  const darkOk = await hasBg(DARK_CANVAS);
+  const lightLeaked = await hasBg(LIGHT_CANVAS);
+  record('dark theme paints the charcoal canvas', darkOk && !lightLeaked);
+
+  // Switching must not reload: a navigation would reset this marker.
+  await page.evaluate(() => { window.__noReload = true; });
+  await page.getByLabel('Light theme', { exact: false }).click();
+  await page.waitForTimeout(500);
+  record(
+    'theme switch does not reload the page',
+    await page.evaluate(() => window.__noReload === true),
+  );
+
+  await page.getByLabel('Dark theme', { exact: false }).click();
+  await page.waitForTimeout(400);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(2500);
+  record('theme preference survives a reload', await hasBg(DARK_CANVAS));
+
+  // --- responsive ----------------------------------------------------------
+  const seesSidebar = () =>
+    page.getByText('Your life, in one place').isVisible().catch(() => false);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(700);
+  record('desktop shows the sidebar', await seesSidebar());
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(700);
+  record('mobile hides the sidebar', !(await seesSidebar()));
+  record(
+    'mobile keeps bottom navigation',
+    await page.getByText('Finance', { exact: true }).first().isVisible().catch(() => false),
+  );
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(500);
+
   // --- sign out ------------------------------------------------------------
   // Click through rather than page.goto: a full reload restarts session
   // restoration, and the button is not mounted until that finishes.
   await page.getByText('Settings', { exact: true }).first().click();
   await page.waitForTimeout(1200);
-  await page.getByText('Sign out', { exact: true }).click();
-  await page.waitForTimeout(2500);
+  const signOut = page.getByRole('button', { name: 'Sign out' });
+  await signOut.waitFor({ state: 'visible' });
+  await signOut.click();
+  // Wait for the condition rather than a fixed delay: the preceding viewport
+  // changes make the re-render time variable.
+  await page.waitForURL('**/sign-in', { timeout: 10000 }).catch(() => {});
   record('sign-out returns to sign-in', page.url().includes('/sign-in'), page.url());
 
   // --- noise ---------------------------------------------------------------

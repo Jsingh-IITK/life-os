@@ -125,6 +125,8 @@ export default tseslint.config(
         location: 'readonly',
         innerWidth: 'readonly',
         innerHeight: 'readonly',
+        getComputedStyle: 'readonly',
+        window: 'readonly',
       },
     },
   },

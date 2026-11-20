@@ -1,14 +1,14 @@
-import { ModuleScreen, styles } from '@/components/ModuleScreen';
-import { Text } from '@/components/Themed';
+import { EmptyState, Screen } from '@/components/ui';
 
 export default function FinanceScreen() {
   return (
-    <ModuleScreen title="Finance" phase="Phases 2–4">
-      <Text style={styles.caption}>
-        Accounts, transactions, budgets and wealth. Built on a double-entry
-        ledger so transfers, card repayments and investment purchases cannot be
-        counted as spending.
-      </Text>
-    </ModuleScreen>
+    <Screen
+      title="Finance"
+      subtitle="Accounts, transactions, budgets and wealth.">
+      <EmptyState
+        title="No accounts yet"
+        description="Add a bank account or card to start recording transactions. Every figure here will be traceable to the entries behind it — balances are derived from the ledger, never stored."
+      />
+    </Screen>
   );
 }

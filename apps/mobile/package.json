@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
     "@life-os/finance-core": "workspace:*",
     "@life-os/fitness-core": "workspace:*",
     "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-navigation/bottom-tabs": "^7.22.0",
     "@supabase/supabase-js": "^2.119.2",
     "expo": "~58.0.26",
     "expo-constants": "~58.0.16",

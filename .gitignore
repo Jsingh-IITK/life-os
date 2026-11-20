@@ -37,3 +37,5 @@ Thumbs.db
 # Smoke test artefacts
 scripts/.smoke-last.png
 scripts/.after-signin.png
+scripts/.shots/
+scripts/.home.png

@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 
 import { AuthForm } from '@/components/AuthForm';
-import { Text } from '@/components/Themed';
+import { Text } from '@/components/ui';
 import { describeAuthError } from '@/lib/auth/errors';
 import { supabase } from '@/lib/supabase';
 
@@ -20,7 +20,7 @@ export default function ForgotPasswordScreen() {
       }}
       footer={
         <Link href="/sign-in">
-          <Text style={{ color: '#2f95dc' }}>Back to sign in</Text>
+          <Text variant="body" color="brandPrimary">Back to sign in</Text>
         </Link>
       }
     />

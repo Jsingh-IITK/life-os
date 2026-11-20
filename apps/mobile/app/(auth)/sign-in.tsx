@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 
 import { AuthForm } from '@/components/AuthForm';
-import { Text } from '@/components/Themed';
+import { Text } from '@/components/ui';
 import { describeAuthError } from '@/lib/auth/errors';
 import { supabase } from '@/lib/supabase';
 
@@ -21,10 +21,10 @@ export default function SignInScreen() {
       footer={
         <>
           <Link href="/sign-up">
-            <Text style={{ color: '#2f95dc' }}>Create an account</Text>
+            <Text variant="body" color="brandPrimary">Create an account</Text>
           </Link>
           <Link href="/forgot-password">
-            <Text style={{ opacity: 0.6, fontSize: 13 }}>Forgot your password?</Text>
+            <Text variant="secondary" color="textMuted">Forgot your password?</Text>
           </Link>
         </>
       }
