@@ -110,6 +110,10 @@ function RootLayoutNav() {
             name="transaction/new"
             options={{ presentation: 'modal', title: 'Add transaction' }}
           />
+          <Stack.Screen
+            name="transaction/[id]"
+            options={{ presentation: 'modal', title: 'Edit transaction' }}
+          />
         </Stack.Protected>
 
         <Stack.Protected guard={!signedIn} redirectTo="/">

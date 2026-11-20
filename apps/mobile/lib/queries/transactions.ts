@@ -166,3 +166,98 @@ export function usePostTransaction() {
     },
   });
 }
+
+/** One transaction with its legs, for editing. */
+export interface TransactionDetail {
+  id: string;
+  date: string;
+  type: Postings.TransactionType;
+  merchant: string | null;
+  paymentMethod: string | null;
+  legs: { accountId: string; amount: Money.Paise }[];
+}
+
+export function useTransaction(id: string | undefined) {
+  const userId = useUserId();
+
+  return useQuery({
+    queryKey: [...queryKeys.transactions(userId ?? 'anonymous'), 'detail', id],
+    enabled: userId !== null && !!id,
+    queryFn: async (): Promise<TransactionDetail> => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id, txn_date, type, merchant, payment_method, postings ( ledger_account_id, amount )')
+        .eq('id', id!)
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      const legs = (data.postings ?? []) as unknown as {
+        ledger_account_id: string;
+        amount: string | number;
+      }[];
+
+      return {
+        id: data.id as string,
+        date: data.txn_date as string,
+        type: data.type as Postings.TransactionType,
+        merchant: (data.merchant as string | null) ?? null,
+        paymentMethod: (data.payment_method as string | null) ?? null,
+        legs: legs.map((l) => ({
+          accountId: l.ledger_account_id,
+          amount: Money.fromDatabase(l.amount),
+        })),
+      };
+    },
+  });
+}
+
+/** Amends a transaction. The legs are rebuilt, not patched. */
+export function useUpdateTransaction() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async ({ id, entry }: { id: string; entry: NewTransaction }) => {
+      const legs = Postings.buildPostings(entry.input);
+
+      const { error } = await supabase.rpc('update_transaction', {
+        p_transaction_id: id,
+        payload: {
+          txn_date: entry.date,
+          type: entry.input.type,
+          merchant: entry.merchant ?? null,
+          payment_method: entry.paymentMethod ?? null,
+          postings: Postings.toRpcPostings(legs),
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
+      void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+    },
+  });
+}
+
+/** Soft delete. The postings survive, so this is reversible. */
+export function useDeleteTransaction() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('delete_transaction', { p_transaction_id: id });
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
+      void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+    },
+  });
+}

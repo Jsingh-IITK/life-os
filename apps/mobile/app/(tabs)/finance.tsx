@@ -175,6 +175,7 @@ export default function FinanceScreen() {
             (transactions.data ?? []).map((t, i) => (
               <ListRow
                 key={t.id}
+                onPress={() => router.push(`/transaction/${t.id}`)}
                 title={t.merchant || t.categoryName || TYPE_LABELS[t.type] || t.type}
                 meta={`${t.date}${t.categoryName ? ` · ${t.categoryName}` : ''}`}
                 // Sign reflects how the money reads, not the ledger's

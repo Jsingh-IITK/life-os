@@ -1,4 +1,4 @@
-import { StyleSheet, View, type ViewProps } from 'react-native';
+import { Pressable, StyleSheet, View, type ViewProps } from 'react-native';
 
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/design/theme';
@@ -14,6 +14,8 @@ export interface ListRowProps extends ViewProps {
   /** Anything on the right instead of an amount — a Pill, a Tag. */
   trailing?: React.ReactNode;
   last?: boolean;
+  /** Makes the row interactive. Omit for display-only rows. */
+  onPress?: () => void;
 }
 
 /**
@@ -28,18 +30,27 @@ export function ListRow({
   amountTone = 'textPrimary',
   trailing,
   last = false,
+  onPress,
   style,
   ...rest
 }: ListRowProps) {
   const colors = useColors();
 
+  // A row with an action must be a button to assistive technology; a display
+  // row must not be, or every balance line announces itself as pressable.
+  const Container = onPress ? Pressable : View;
+  const interactive = onPress
+    ? { onPress, accessibilityRole: 'button' as const, accessibilityLabel: `${title}${meta ? `, ${meta}` : ''}` }
+    : {};
+
   return (
-    <View
+    <Container
       style={[
         styles.row,
         { borderBottomColor: colors.borderPrimary, borderBottomWidth: last ? 0 : 1 },
         style,
       ]}
+      {...interactive}
       {...rest}>
       <View style={styles.left}>
         {icon ? (
@@ -64,7 +75,7 @@ export function ListRow({
           {amount}
         </Text>
       ) : null)}
-    </View>
+    </Container>
   );
 }
 
