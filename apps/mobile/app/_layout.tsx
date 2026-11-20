@@ -1,9 +1,10 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { Splash } from '@/components/Splash';
 import { useColorScheme } from '@/components/useColorScheme';
 import { SessionProvider, useSession } from '@/lib/auth/session';
 
@@ -47,43 +48,44 @@ export default function RootLayout() {
   );
 }
 
-/**
- * Routes the user between the auth group and the app based on session state.
- *
- * This is navigation convenience, not a security boundary. The actual guarantee
- * is Row Level Security: an unauthenticated client can reach no rows regardless
- * of which screen it renders, so a routing bug leaks nothing.
- */
-function useProtectedRoute() {
-  const { session, loading } = useSession();
-  const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Until the stored session has been read, redirecting either way would be
-    // a guess — and guessing "signed out" bounces a returning user to sign-in.
-    if (loading) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!session && !inAuthGroup) {
-      router.replace('/sign-in');
-    } else if (session && inAuthGroup) {
-      router.replace('/');
-    }
-  }, [session, loading, segments, router]);
-}
-
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  useProtectedRoute();
+  const { session, loading } = useSession();
+
+  // Until the stored session has been read, neither branch is known to be
+  // correct. Rendering the app here is what caused the server-rendered page to
+  // show Home to a signed-out visitor before the client redirected; rendering
+  // nothing left the page blank. A loading state is never the wrong answer.
+  if (loading) {
+    return (
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Splash />
+      </ThemeProvider>
+    );
+  }
+
+  const signedIn = session !== null;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        {/*
+          Declarative guards rather than a redirect in an effect. Expo Router
+          excludes a failing branch from the navigation tree entirely, so the
+          protected screens are never mounted and never rendered — which is why
+          this removes the flash of app content instead of merely hiding it.
+
+          Still not a security boundary: RLS is what guarantees an
+          unauthenticated client can reach no rows.
+        */}
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack.Protected>
+
+        <Stack.Protected guard={!signedIn} redirectTo="/sign-in">
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        </Stack.Protected>
       </Stack>
     </ThemeProvider>
   );
