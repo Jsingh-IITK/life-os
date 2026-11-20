@@ -14,7 +14,7 @@
 --     single posting never balances alone.
 
 begin;
-select plan(13);
+select plan(15);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
 values ('33333333-3333-3333-3333-333333333333',
