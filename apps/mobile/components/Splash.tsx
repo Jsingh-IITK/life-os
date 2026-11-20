@@ -3,26 +3,34 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 
 /**
- * Shown while the stored session is being read.
+ * Covers the app while the stored session is being read.
  *
- * This renders during server-side rendering too: on the server there is no
- * stored session to read, so session state is always "unknown" for the first
- * paint of every route. Rendering nothing there left a blank page; rendering
- * the app would show protected content to a signed-out visitor; rendering the
- * auth screens would flash sign-in at an already-signed-in user. A neutral
- * loading state is the only option that is never wrong.
+ * Rendered as an overlay rather than instead of the navigator. Expo Router's
+ * root layout must always return a navigator — returning a bare view from it
+ * stops routes mounting and collapses the layout container, which looks like a
+ * redirect loop and a broken page rather than an obvious error.
  */
 export function Splash() {
   return (
-    <View style={styles.container}>
+    <View style={styles.overlay}>
       <Text style={styles.wordmark}>Life OS</Text>
-      <ActivityIndicator style={styles.spinner} />
+      <ActivityIndicator size="small" style={styles.spinner} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  overlay: {
+    // RN 0.88 removed StyleSheet.absoluteFillObject; spelled out instead.
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
   wordmark: { fontSize: 20, fontWeight: '600', opacity: 0.85 },
   spinner: { marginTop: 16 },
 });

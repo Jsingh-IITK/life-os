@@ -111,6 +111,24 @@ export default tseslint.config(
     },
   },
 
+  // Smoke tests run in Node but contain page.evaluate() bodies that execute in
+  // the browser, so both sets of globals are legitimate here.
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        navigator: 'readonly',
+        location: 'readonly',
+        innerWidth: 'readonly',
+        innerHeight: 'readonly',
+      },
+    },
+  },
+
   // Tests may be looser about non-null assertions on fixtures.
   {
     files: ['**/*.test.ts', '**/*.test.tsx'],

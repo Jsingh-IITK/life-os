@@ -2,7 +2,7 @@
   "name": "life-os",
   "version": "0.0.0",
   "private": true,
-  "description": "Personal Life OS — modular personal management. Finance and Fitness as first-class modules.",
+  "description": "Personal Life OS \u2014 modular personal management. Finance and Fitness as first-class modules.",
   "packageManager": "pnpm@12.21.0",
   "engines": {
     "node": ">=22"
@@ -15,12 +15,14 @@
     "mobile:web": "pnpm --filter @life-os/mobile web",
     "mobile:android": "pnpm --filter @life-os/mobile android",
     "db:push": "supabase db push",
-    "db:test": "supabase test db"
+    "db:test": "supabase test db",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "eslint": "^9.39.0",
     "eslint-plugin-import": "^2.32.0",
+    "playwright": "^1.65.1",
     "supabase": "^3.2.0",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.46.0",

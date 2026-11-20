@@ -33,3 +33,7 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# Smoke test artefacts
+scripts/.smoke-last.png
+scripts/.after-signin.png

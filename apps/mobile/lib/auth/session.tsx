@@ -32,9 +32,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     // Restore whatever is in storage before subscribing, so the first paint
     // already reflects a persisted session.
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) setState({ session: data.session, loading: false });
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (active) setState({ session: data.session, loading: false });
+      })
+      .catch(() => {
+        // A failure to read storage is not a session; proceed as signed out
+        // rather than leaving the app stuck behind a loading overlay.
+        if (active) setState({ session: null, loading: false });
+      });
+
+    // Bounded wait. If storage never answers — a wedged adapter, a blocked
+    // origin — the app must still become usable rather than sitting on the
+    // splash forever. Signing in again is a far better failure than a page
+    // that never resolves.
+    const timeout = setTimeout(() => {
+      if (active) setState((prev) => (prev.loading ? { ...prev, loading: false } : prev));
+    }, 5000);
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       // Covers sign-in, sign-out, token refresh and user updates.
@@ -43,6 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     return () => {
       active = false;
+      clearTimeout(timeout);
       subscription.subscription.unsubscribe();
     };
   }, []);

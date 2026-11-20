@@ -51,42 +51,40 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { session, loading } = useSession();
-
-  // Until the stored session has been read, neither branch is known to be
-  // correct. Rendering the app here is what caused the server-rendered page to
-  // show Home to a signed-out visitor before the client redirected; rendering
-  // nothing left the page blank. A loading state is never the wrong answer.
-  if (loading) {
-    return (
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Splash />
-      </ThemeProvider>
-    );
-  }
-
   const signedIn = session !== null;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        {/*
-          Declarative guards rather than a redirect in an effect. Expo Router
-          excludes a failing branch from the navigation tree entirely, so the
-          protected screens are never mounted and never rendered — which is why
-          this removes the flash of app content instead of merely hiding it.
+      {/*
+        The navigator is always rendered. Swapping it out for a loading view
+        while the session resolves breaks route mounting entirely — the router
+        has no navigator to attach routes to, and the result looks like a
+        redirect loop rather than an error.
 
-          Still not a security boundary: RLS is what guarantees an
-          unauthenticated client can reach no rows.
-        */}
-        <Stack.Protected guard={signedIn}>
+        Stack.Protected excludes a failing branch from the tree, so protected
+        screens are never mounted rather than mounted and hidden. While the
+        session is still unknown the signed-out branch is active, and the
+        overlay below covers that moment so a returning user never sees
+        sign-in flash past.
+
+        None of this is a security boundary: RLS is what guarantees an
+        unauthenticated client can read no rows.
+      */}
+      <Stack>
+        {/* redirectTo fires when the guard fails, so each branch points at
+            the other: signed out leaves the app for sign-in, signed in leaves
+            the auth screens for home. */}
+        <Stack.Protected guard={signedIn} redirectTo="/sign-in">
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack.Protected>
 
-        <Stack.Protected guard={!signedIn} redirectTo="/sign-in">
+        <Stack.Protected guard={!signedIn} redirectTo="/">
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>
+
+      {loading ? <Splash /> : null}
     </ThemeProvider>
   );
 }
