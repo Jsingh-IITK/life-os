@@ -5,7 +5,7 @@
 -- the balance is the sum of the legs.
 
 begin;
-select plan(14);
+select plan(15);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
 values

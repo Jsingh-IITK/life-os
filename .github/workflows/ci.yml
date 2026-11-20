@@ -81,6 +81,12 @@ jobs:
 
       # Runners have Docker, so this is where the schema is actually executed
       # rather than merely parsed. Postgres only — the full stack is not needed.
+      # Cheap and fails fast: a plan that disagrees with the assertions fails
+      # the whole suite even when every assertion passes, and reads as a test
+      # failure rather than a counting slip.
+      - name: Check pgTAP plan counts
+        run: node scripts/check-plans.mjs
+
       - name: Start Postgres and apply migrations
         run: supabase db start
 

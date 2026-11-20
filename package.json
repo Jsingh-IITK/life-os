@@ -16,7 +16,8 @@
     "mobile:android": "pnpm --filter @life-os/mobile android",
     "db:push": "supabase db push",
     "db:test": "supabase test db",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "check:plans": "node scripts/check-plans.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
