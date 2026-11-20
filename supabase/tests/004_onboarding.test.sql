@@ -27,7 +27,7 @@ select lives_ok(
 );
 
 select is(
-  (select count(*) from public.ledger_accounts), 21::bigint,
+  (select count(*) from public.ledger_accounts), 22::bigint,
   'creates the full chart: 1 equity + 1 bank + 1 card + 3 investments + 2 income + 14 expense'
 );
 
