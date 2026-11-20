@@ -1,10 +1,11 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { SessionProvider, useSession } from '@/lib/auth/session';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -39,15 +40,48 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <SessionProvider>
+      <RootLayoutNav />
+    </SessionProvider>
+  );
+}
+
+/**
+ * Routes the user between the auth group and the app based on session state.
+ *
+ * This is navigation convenience, not a security boundary. The actual guarantee
+ * is Row Level Security: an unauthenticated client can reach no rows regardless
+ * of which screen it renders, so a routing bug leaks nothing.
+ */
+function useProtectedRoute() {
+  const { session, loading } = useSession();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Until the stored session has been read, redirecting either way would be
+    // a guess — and guessing "signed out" bounces a returning user to sign-in.
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!session && !inAuthGroup) {
+      router.replace('/sign-in');
+    } else if (session && inAuthGroup) {
+      router.replace('/');
+    }
+  }, [session, loading, segments, router]);
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  useProtectedRoute();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>

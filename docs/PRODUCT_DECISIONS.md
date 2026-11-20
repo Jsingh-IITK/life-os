@@ -163,11 +163,56 @@ compiler, buys nothing here — the core packages use no TS 7-specific features.
 
 ---
 
+## D11 — Salary is recorded net (take-home)
+
+**Decision:** `income_sources.payroll_mode` defaults to `net`. A salary credit
+posts the amount that actually arrived in the bank.
+
+```
+net mode, ₹1,25,000 take-home:
+  DR Asset:Bank        12500000
+  CR Income:Salary     12500000
+```
+
+**Why:** the figure the user knows and states is take-home. Recording gross
+would require them to supply employer EPF, employee EPF and TDS every month,
+all of which they would have to look up.
+
+**The trap this avoids:** if salary is recorded net, the employee EPF deduction
+*never passed through the bank account*. Posting that contribution as a
+Bank→EPF transfer would therefore debit cash that was never there, understating
+the bank balance by the deduction every single month. In net mode, an EPF
+contribution is instead recognised against employer/employee contribution
+income:
+
+```
+EPF contribution ₹1,800 + ₹1,800, net mode:
+  DR Asset:EPF          360000
+  CR Income:EPFEmployer 360000      -- no bank leg: this money never touched the bank
+```
+
+**Gross mode remains available** per income source, for a user who wants full
+payroll visibility:
+
+```
+gross mode, ₹1,50,000 CTC:
+  DR Asset:Bank        12500000
+  DR Asset:EPF           180000
+  DR Expense:Tax         320000     -- TDS
+  CR Income:Salary     15000000
+```
+
+Both modes satisfy the invariant that EPF is never double-counted; they differ
+only in whether the bank leg carries the gross or the net amount.
+
+---
+
 ## Open decisions
+
+*O1 (payroll mode) resolved — see D11.*
 
 | # | Question | Needed by | Current assumption |
 |---|---|---|---|
-| O1 | Payroll mode: gross or net salary? Determines whether EPF deductions post a bank leg. | Phase 2 (`income_sources`) | **Net** — the seed figure is stated as take-home |
 | O2 | Final product name and branding | Before any public release | `life-os` is the repo name only |
 | O3 | Design system | Phase 1 | To be proposed, not invented silently |
 | O4 | Chart library | Phase 2 (first analytics) | Pending an Expo 58 / Skia compatibility spike |
