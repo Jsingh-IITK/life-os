@@ -62,3 +62,27 @@ jobs:
       - name: Export web bundle
         working-directory: apps/mobile
         run: pnpm expo export --platform web --output-dir ../../.web-build
+
+  database:
+    name: Database — migrations and RLS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Runners have Docker, so this is where the schema is actually executed
+      # rather than merely parsed. Postgres only — the full stack is not needed.
+      - name: Start Postgres and apply migrations
+        run: supabase db start
+
+      - name: Lint schema
+        run: supabase db lint --level warning
+
+      # The RLS and ledger invariants. These are the tests that cannot be run
+      # without a real database: cross-user isolation, the ownership-reassignment
+      # attack, the composite-FK rejection, and the deferred balance constraint.
+      - name: pgTAP — schema, isolation, ledger integrity
+        run: supabase test db
