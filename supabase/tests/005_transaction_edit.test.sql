@@ -125,9 +125,12 @@ select lives_ok(
 -- so the balance returns to zero without the history being destroyed.
 select is(pg_temp.bank_balance(), 0::bigint, 'a deleted transaction leaves no balance behind');
 
+-- Two accepted corrections plus the deletion. The rejected correction wrote
+-- an audit row too, but it was rolled back with the rest of that attempt —
+-- which is right: nothing happened, so nothing is recorded as having happened.
 select is(
-  (select count(*) from public.transaction_audit), 4::bigint,
-  'every correction and the deletion are recorded'
+  (select count(*) from public.transaction_audit), 3::bigint,
+  'both corrections and the deletion are recorded, and the rejected one is not'
 );
 
 -- ---------------------------------------------------------------------------
