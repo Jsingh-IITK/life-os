@@ -106,6 +106,10 @@ function RootLayoutNav() {
         <Stack.Protected guard={signedIn} redirectTo="/sign-in">
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'About' }} />
+          <Stack.Screen
+            name="transaction/new"
+            options={{ presentation: 'modal', title: 'Add transaction' }}
+          />
         </Stack.Protected>
 
         <Stack.Protected guard={!signedIn} redirectTo="/">

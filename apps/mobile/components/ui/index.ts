@@ -17,3 +17,4 @@ export { SectionHead } from './SectionHead';
 export { SampleNotice } from './SampleNotice';
 export { ErrorState } from './ErrorState';
 export { LoadingState } from './LoadingState';
+export { Select, type Option } from './Select';

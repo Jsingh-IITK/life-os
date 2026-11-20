@@ -275,3 +275,21 @@ describe('split()', () => {
     expect(() => split(paise(100), 2.5)).toThrow(/positive integer/);
   });
 });
+
+describe('date handling is not part of money, but the trap is adjacent', () => {
+  it('toISOString() reports the UTC day, which is not the local day in IST', () => {
+    // 2026-11-21 02:00 IST is still 2026-11-20 in UTC. Defaulting a
+    // transaction date from toISOString() therefore files early-morning
+    // entries against the previous day — and at a month boundary, the
+    // previous month's spending.
+    const istEarlyMorning = new Date('2026-11-20T20:30:00.000Z'); // 02:00 IST on the 21st
+    expect(istEarlyMorning.toISOString().slice(0, 10)).toBe('2026-11-20');
+
+    // The local-date construction used by the entry form.
+    const localDate = (d: Date, offsetMinutes: number): string => {
+      const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+      return shifted.toISOString().slice(0, 10);
+    };
+    expect(localDate(istEarlyMorning, 330)).toBe('2026-11-21');
+  });
+});

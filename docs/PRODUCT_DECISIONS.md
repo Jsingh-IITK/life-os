@@ -207,6 +207,23 @@ only in whether the bank leg carries the gross or the net amount.
 
 ---
 
+## Known issues
+
+### User deletion is blocked by posting history
+
+`postings → ledger_accounts` is `ON DELETE RESTRICT`, which is correct for its
+own sake: an account with history must not be deletable, or balances would
+silently change. But it also blocks the cascade from `auth.users`, so deleting
+a user fails with a foreign-key violation while their postings exist.
+
+Found while cleaning up test data. It does not affect normal use — nothing in
+the app deletes users — but the PRD lists account deletion and data export as
+future requirements, and that feature will need an explicit routine deleting in
+dependency order (postings → transactions → accounts → profile) rather than
+relying on cascade ordering, which Postgres does not guarantee.
+
+---
+
 ## Open decisions
 
 *O1 (payroll mode) resolved — see D11.*

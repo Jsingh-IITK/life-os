@@ -1,5 +1,6 @@
 import { Money } from '@life-os/finance-core';
-import { StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -15,6 +16,7 @@ import {
   Text,
 } from '@/components/ui';
 import { space } from '@/design/tokens';
+import { useTransactions } from '@/lib/queries/transactions';
 import {
   netWorth,
   totalFor,
@@ -24,9 +26,21 @@ import {
   type AccountBalance,
 } from '@/lib/queries/accounts';
 
+/** Fallback titles for transactions with no merchant or category. */
+const TYPE_LABELS: Partial<Record<string, string>> = {
+  transfer: 'Transfer',
+  cc_repayment: 'Card repayment',
+  investment_buy: 'Investment purchase',
+  investment_sell: 'Investment redemption',
+  opening_balance: 'Opening balance',
+  adjustment: 'Adjustment',
+};
+
 export default function FinanceScreen() {
+  const router = useRouter();
   const accounts = useHasChartOfAccounts();
   const balances = useAccountBalances();
+  const transactions = useTransactions(8);
   const onboard = useOnboard();
 
   if (accounts.isPending) {
@@ -125,6 +139,10 @@ export default function FinanceScreen() {
         </Card>
       </Grid>
 
+      <View style={styles.toolbar}>
+        <Button label="＋ Add transaction" onPress={() => router.push('/transaction/new')} />
+      </View>
+
       <Grid columns={2}>
         <Card style={styles.panel}>
           <SectionHead
@@ -139,6 +157,36 @@ export default function FinanceScreen() {
           ) : (
             cashAccounts.map((a, i) => (
               <AccountRow key={a.id} account={a} last={i === cashAccounts.length - 1} />
+            ))
+          )}
+        </Card>
+
+        <Card style={styles.panel}>
+          <SectionHead title="Recent transactions" subtitle="Newest first" />
+          {transactions.isPending ? (
+            <LoadingState label="Loading transactions…" />
+          ) : transactions.isError ? (
+            <ErrorState message={transactions.error.message} onRetry={() => void transactions.refetch()} />
+          ) : (transactions.data?.length ?? 0) === 0 ? (
+            <Text variant="secondary" color="textSecondary" style={styles.empty}>
+              Nothing recorded yet. Add your first transaction to see it here.
+            </Text>
+          ) : (
+            (transactions.data ?? []).map((t, i) => (
+              <ListRow
+                key={t.id}
+                title={t.merchant || t.categoryName || TYPE_LABELS[t.type] || t.type}
+                meta={`${t.date}${t.categoryName ? ` · ${t.categoryName}` : ''}`}
+                // Sign reflects how the money reads, not the ledger's
+                // debit-positive convention. A transfer gets neither sign
+                // because it is neither spent nor earned.
+                amount={
+                  (t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '') +
+                  Money.formatINR(t.amount)
+                }
+                amountTone={t.direction === 'in' ? 'success' : 'textPrimary'}
+                last={i === (transactions.data?.length ?? 0) - 1}
+              />
             ))
           )}
         </Card>
@@ -187,4 +235,5 @@ const styles = StyleSheet.create({
   setup: { gap: space[3], alignItems: 'flex-start', maxWidth: 560 },
   setupBody: { maxWidth: 520 },
   empty: { paddingVertical: space[5] },
+  toolbar: { flexDirection: 'row', justifyContent: 'flex-end' },
 });
