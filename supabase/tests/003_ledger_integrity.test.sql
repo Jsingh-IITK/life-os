@@ -3,9 +3,15 @@
 -- These assert the structural claims directly against the database. A transfer
 -- producing no expense posting is not a convention here — it is checked.
 --
--- Note on `set constraints all immediate`: the balance trigger is DEFERRABLE
--- INITIALLY DEFERRED so it fires at COMMIT, which never happens inside a test
--- that rolls back. Forcing constraints immediate is what makes it observable.
+-- Two things about the deferred balance trigger shape these tests:
+--
+--  1. It is DEFERRABLE INITIALLY DEFERRED, so it fires at COMMIT, which never
+--     happens inside a test that rolls back. `set constraints all immediate` is
+--     what makes it observable.
+--  2. That setting persists for the remainder of the transaction. Each check is
+--     therefore followed by an explicit `set constraints all deferred`, or a
+--     later multi-leg insert would be judged one leg at a time and fail — a
+--     single posting never balances alone.
 
 begin;
 select plan(13);
@@ -27,6 +33,16 @@ values
   ('c0000004-0000-0000-0000-000000000004', '33333333-3333-3333-3333-333333333333', 'EXPENSE',   'Groceries'),
   ('c0000005-0000-0000-0000-000000000005', '33333333-3333-3333-3333-333333333333', 'INCOME',    'Salary');
 
+-- Helper: total spend = everything posted to EXPENSE accounts.
+create or replace function pg_temp.total_spend()
+returns bigint language sql stable as $f$
+  select coalesce(sum(p.amount), 0)::bigint
+  from public.postings p
+  join public.ledger_accounts la on la.id = p.ledger_account_id
+  join public.transactions t on t.id = p.transaction_id and t.deleted_at is null
+  where la.account_class = 'EXPENSE';
+$f$;
+
 -- ---------------------------------------------------------------------------
 -- The balance guarantee
 -- ---------------------------------------------------------------------------
@@ -45,12 +61,7 @@ select isnt(
   'a balanced expense posts successfully'
 );
 
-select lives_ok(
-  $$ set constraints all immediate $$,
-  'the balanced transaction satisfies the deferred balance check'
-);
-
--- Unbalanced legs must be refused.
+-- Unbalanced legs must be refused at the deferred check.
 savepoint before_unbalanced;
 insert into public.transactions (id, user_id, txn_date, type)
 values ('d0000001-0000-0000-0000-000000000001',
@@ -69,8 +80,9 @@ select throws_ok(
   'postings that do not sum to zero are rejected'
 );
 rollback to savepoint before_unbalanced;
+set constraints all deferred;
 
--- A lone leg is not double-entry.
+-- A lone leg is not double-entry. post_transaction refuses before inserting.
 savepoint before_single_leg;
 select throws_ok(
   $$ select public.post_transaction($x$ {
@@ -82,8 +94,11 @@ select throws_ok(
   'a single-posting transaction is refused'
 );
 rollback to savepoint before_single_leg;
+set constraints all deferred;
 
--- Zero-amount legs carry no information and are refused.
+-- Zero-amount legs carry no information. This is a plain CHECK, so it fires at
+-- insert time regardless of the deferred trigger.
+savepoint before_zero;
 select throws_ok(
   $$ insert into public.postings (user_id, transaction_id, ledger_account_id, amount)
      values ('33333333-3333-3333-3333-333333333333',
@@ -93,20 +108,12 @@ select throws_ok(
   null,
   'a zero-amount posting is refused'
 );
+rollback to savepoint before_zero;
+set constraints all deferred;
 
 -- ---------------------------------------------------------------------------
 -- The accounting invariants
 -- ---------------------------------------------------------------------------
-
--- Helper: total spend = everything posted to EXPENSE accounts.
-create or replace function pg_temp.total_spend()
-returns bigint language sql stable as $$
-  select coalesce(sum(p.amount), 0)::bigint
-  from public.postings p
-  join public.ledger_accounts la on la.id = p.ledger_account_id
-  join public.transactions t on t.id = p.transaction_id and t.deleted_at is null
-  where la.account_class = 'EXPENSE';
-$$;
 
 select is(pg_temp.total_spend(), 30000::bigint, 'spend so far is the ₹300 of groceries');
 
@@ -130,6 +137,22 @@ select is(
   'a transfer does not increase expenditure'
 );
 
+-- The emergency fund holds the money, and it is a sibling asset — not a second
+-- copy of it. The bank is correspondingly lower.
+select is(
+  (select natural_balance from public.account_balances
+   where ledger_account_id = 'c0000002-0000-0000-0000-000000000002'),
+  1000000::bigint,
+  'the emergency fund holds ₹10,000'
+);
+
+select is(
+  (select natural_balance from public.account_balances
+   where ledger_account_id = 'c0000001-0000-0000-0000-000000000001'),
+  (-30000 - 1000000)::bigint,
+  'the bank is reduced by both the expense and the transfer — the money is not duplicated'
+);
+
 -- Card purchase ₹2,000: expense recognised now, liability increases.
 select isnt(
   public.post_transaction($$ {
@@ -148,7 +171,7 @@ select is(
   'a card purchase is expenditure at the time of purchase'
 );
 
--- Repaying the card ₹2,000: settles the liability from the bank.
+-- Repaying the card ₹2,000 from the bank.
 select isnt(
   public.post_transaction($$ {
     "txn_date": "2026-11-25", "type": "cc_repayment",
@@ -168,12 +191,17 @@ select is(
   'a card repayment does not duplicate expenditure'
 );
 
--- And the card is now settled.
 select is(
   (select natural_balance from public.account_balances
    where ledger_account_id = 'c0000003-0000-0000-0000-000000000003'),
   0::bigint,
   'the credit card liability is back to zero after repayment'
+);
+
+-- Finally, with every transaction above posted, prove the whole ledger balances.
+select lives_ok(
+  $$ set constraints all immediate $$,
+  'every transaction in this test satisfies the deferred balance check'
 );
 
 select * from finish();

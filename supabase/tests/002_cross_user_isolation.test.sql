@@ -144,13 +144,21 @@ select is(
 -- Updating someone else's row matches nothing rather than erroring.
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 
+-- A data-modifying CTE is only legal at the top level, so row_count is
+-- captured in a function rather than a subquery.
+create or replace function pg_temp.try_tamper()
+returns bigint language plpgsql as $f$
+declare affected bigint;
+begin
+  update public.transactions set description = 'tampered'
+  where id = 'bbbb0001-0000-0000-0000-000000000001';
+  get diagnostics affected = row_count;
+  return affected;
+end;
+$f$;
+
 select is(
-  (with attempted as (
-     update public.transactions set description = 'tampered'
-     where id = 'bbbb0001-0000-0000-0000-000000000001'
-     returning 1
-   ) select count(*) from attempted),
-  0::bigint,
+  pg_temp.try_tamper(), 0::bigint,
   'Alice''s update of Bob''s row affects zero rows'
 );
 
