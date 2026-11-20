@@ -8,4 +8,6 @@
  */
 
 export * as Money from './money/index';
+export * as Postings from './postings/index';
 export type { Paise } from './money/paise';
+export type { Leg, TransactionInput, TransactionType } from './postings/types';
