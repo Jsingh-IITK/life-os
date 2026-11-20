@@ -59,8 +59,14 @@ jobs:
 
       # Catches Metro resolution problems that typecheck cannot see — notably
       # anything the bundler resolves differently from tsc.
+      # The Supabase client fails fast on missing env, which is correct at
+      # runtime but would break the static web render. These are placeholders;
+      # no real project is contacted during a bundle.
       - name: Export web bundle
         working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
         run: pnpm expo export --platform web --output-dir ../../.web-build
 
   database:
