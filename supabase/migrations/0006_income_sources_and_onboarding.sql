@@ -55,41 +55,6 @@ create index income_sources_user_idx on public.income_sources (user_id) where is
 -- Onboarding
 -- ---------------------------------------------------------------------------
 
--- Creates one ledger account plus its satellite row, returning the new id.
-create or replace function app_private.create_account(
-  p_user_id       uuid,
-  p_class         public.account_class,
-  p_name          text,
-  p_satellite     text,                  -- 'financial' | 'category' | null
-  p_account_type  text default null,     -- financial_accounts.account_type
-  p_is_fixed      boolean default false,
-  p_is_lifestyle  boolean default true,
-  p_sort_order    integer default 0
-)
-returns uuid
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-declare
-  new_id uuid;
-begin
-  insert into public.ledger_accounts (user_id, account_class, name)
-  values (p_user_id, p_class, p_name)
-  returning id into new_id;
-
-  if p_satellite = 'financial' then
-    insert into public.financial_accounts (ledger_account_id, user_id, account_type)
-    values (new_id, p_user_id, p_account_type);
-  elsif p_satellite = 'category' then
-    insert into public.categories (ledger_account_id, user_id, is_fixed, is_lifestyle, sort_order)
-    values (new_id, p_user_id, p_is_fixed, p_is_lifestyle, p_sort_order);
-  end if;
-
-  return new_id;
-end;
-$$;
-
 -- Builds the starting chart of accounts.
 --
 -- SECURITY INVOKER so RLS and the composite foreign keys apply to the caller,
@@ -105,15 +70,14 @@ security invoker
 set search_path = ''
 as $$
 declare
-  uid          uuid := (select auth.uid());
-  bank_name    text := coalesce(nullif(payload ->> 'bank_name', ''), 'Savings account');
-  with_card    boolean := coalesce((payload ->> 'with_card')::boolean, true);
-  with_cash    boolean := coalesce((payload ->> 'with_cash')::boolean, false);
-  with_invest  boolean := coalesce((payload ->> 'with_investments')::boolean, true);
-  bank_id      uuid;
-  salary_id    uuid;
-  created      integer := 0;
-  category     record;
+  uid         uuid := (select auth.uid());
+  bank_name   text := coalesce(nullif(payload ->> 'bank_name', ''), 'Savings account');
+  with_card   boolean := coalesce((payload ->> 'with_card')::boolean, true);
+  with_cash   boolean := coalesce((payload ->> 'with_cash')::boolean, false);
+  with_invest boolean := coalesce((payload ->> 'with_investments')::boolean, true);
+  bank_id     uuid;
+  salary_id   uuid;
+  created     integer;
 begin
   if uid is null then
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
@@ -124,37 +88,79 @@ begin
       using errcode = 'unique_violation';
   end if;
 
-  -- Equity: the counterweight that lets an opening balance exist without
-  -- inventing income. Created even when balances start at zero, so adding one
-  -- later needs no migration.
-  perform app_private.create_account(uid, 'EQUITY', 'Opening balance', null);
-  created := created + 1;
+  -- One statement, so a failure leaves nothing behind rather than a
+  -- half-built chart of accounts. The satellite inserts read the RETURNING
+  -- rows of the ledger insert, which is why this does not need a helper
+  -- function in app_private — a schema the authenticated role deliberately
+  -- has no access to.
+  with spec (name, class, satellite, account_type, is_fixed, is_lifestyle, sort_order, include) as (
+    values
+      -- The counterweight that lets an opening balance exist later without
+      -- inventing income. Created even though balances start at zero.
+      ('Opening balance',         'EQUITY',    null::text,  null::text,     false, true,  0,  true),
 
-  bank_id := app_private.create_account(uid, 'ASSET', bank_name, 'financial', 'bank');
-  created := created + 1;
+      (bank_name,                 'ASSET',     'financial', 'bank',         false, true,  0,  true),
+      ('Credit card',             'LIABILITY', 'financial', 'credit_card',  false, true,  0,  with_card),
+      ('Cash',                    'ASSET',     'financial', 'cash',         false, true,  0,  with_cash),
 
-  if with_card then
-    perform app_private.create_account(uid, 'LIABILITY', 'Credit card', 'financial', 'credit_card');
-    created := created + 1;
-  end if;
+      ('Mutual funds',            'ASSET',     null,        null,           false, true,  0,  with_invest),
+      ('Stocks',                  'ASSET',     null,        null,           false, true,  0,  with_invest),
+      ('EPF',                     'ASSET',     null,        null,           false, true,  0,  with_invest),
 
-  if with_cash then
-    perform app_private.create_account(uid, 'ASSET', 'Cash', 'financial', 'cash');
-    created := created + 1;
-  end if;
+      ('Salary',                  'INCOME',    'category',  null,           false, true,  0,  true),
+      -- Not lifestyle income: reaches net worth and wealth analytics without
+      -- inflating monthly income or the savings rate.
+      ('Realized capital gains',  'INCOME',    'category',  null,           false, false, 1,  true),
 
-  if with_invest then
-    perform app_private.create_account(uid, 'ASSET', 'Mutual funds', null);
-    perform app_private.create_account(uid, 'ASSET', 'Stocks', null);
-    perform app_private.create_account(uid, 'ASSET', 'EPF', null);
-    created := created + 3;
-  end if;
+      -- Committed expenses, 65,500. "Credit card EMI" is deliberately absent:
+      -- repaying a card settles a liability, and booking it as spending would
+      -- double-count the purchase that created the debt.
+      ('Rent',                    'EXPENSE',   'category',  null,           true,  true,  0,  true),
+      ('Food & maid',             'EXPENSE',   'category',  null,           true,  true,  1,  true),
+      ('Electricity',             'EXPENSE',   'category',  null,           true,  true,  2,  true),
+      ('Subscriptions',           'EXPENSE',   'category',  null,           true,  true,  3,  true),
+      ('Groceries',               'EXPENSE',   'category',  null,           false, true,  4,  true),
+      ('Bike & petrol',           'EXPENSE',   'category',  null,           false, true,  5,  true),
+      ('Gym & boxing',            'EXPENSE',   'category',  null,           true,  true,  6,  true),
+      ('Mobile & Wi-Fi',          'EXPENSE',   'category',  null,           true,  true,  7,  true),
+      ('Health & term insurance', 'EXPENSE',   'category',  null,           true,  true,  8,  true),
+      ('Whey & creatine',         'EXPENSE',   'category',  null,           false, true,  9,  true),
 
-  -- Income. Realized gains are marked not-lifestyle so they reach net worth
-  -- and wealth analytics without inflating monthly income or the savings rate.
-  salary_id := app_private.create_account(uid, 'INCOME', 'Salary', 'category', null, false, true, 0);
-  perform app_private.create_account(uid, 'INCOME', 'Realized capital gains', 'category', null, false, false, 1);
-  created := created + 2;
+      -- Discretionary allocations, 19,500.
+      ('Travel',                  'EXPENSE',   'category',  null,           false, true,  10, true),
+      ('Eating out & social',     'EXPENSE',   'category',  null,           false, true,  11, true),
+      ('Shopping & grooming',     'EXPENSE',   'category',  null,           false, true,  12, true),
+      ('Buffer',                  'EXPENSE',   'category',  null,           false, true,  13, true)
+  ),
+  inserted as (
+    insert into public.ledger_accounts (user_id, account_class, name)
+    select uid, s.class::public.account_class, s.name
+    from spec s
+    where s.include
+    returning id, name
+  ),
+  financial as (
+    insert into public.financial_accounts (ledger_account_id, user_id, account_type)
+    select i.id, uid, s.account_type
+    from inserted i
+    join spec s on s.name = i.name
+    where s.satellite = 'financial'
+    returning 1
+  ),
+  categorised as (
+    insert into public.categories (ledger_account_id, user_id, is_fixed, is_lifestyle, sort_order)
+    select i.id, uid, s.is_fixed, s.is_lifestyle, s.sort_order
+    from inserted i
+    join spec s on s.name = i.name
+    where s.satellite = 'category'
+    returning 1
+  )
+  select count(*)::integer into created from inserted;
+
+  select id into bank_id from public.ledger_accounts
+    where user_id = uid and name = bank_name;
+  select id into salary_id from public.ledger_accounts
+    where user_id = uid and name = 'Salary';
 
   insert into public.income_sources (user_id, name, ledger_account_id, payroll_mode, expected_amount)
   values (
@@ -164,33 +170,6 @@ begin
     coalesce(nullif(payload ->> 'payroll_mode', ''), 'net')::public.payroll_mode,
     nullif(payload ->> 'expected_income', '')::bigint
   );
-
-  -- Expense categories. "Credit card EMI" is deliberately not among them:
-  -- repaying a card settles a liability, and recording it as spending would
-  -- double-count the purchase that created the debt.
-  for category in
-    select * from (values
-      ('Rent',                    true,  0),
-      ('Food & maid',             true,  1),
-      ('Electricity',             true,  2),
-      ('Subscriptions',           true,  3),
-      ('Groceries',               false, 4),
-      ('Bike & petrol',           false, 5),
-      ('Gym & boxing',            true,  6),
-      ('Mobile & Wi-Fi',          true,  7),
-      ('Health & term insurance', true,  8),
-      ('Whey & creatine',         false, 9),
-      ('Travel',                  false, 10),
-      ('Eating out & social',     false, 11),
-      ('Shopping & grooming',     false, 12),
-      ('Buffer',                  false, 13)
-    ) as t(name, is_fixed, sort_order)
-  loop
-    perform app_private.create_account(
-      uid, 'EXPENSE', category.name, 'category', null, category.is_fixed, true, category.sort_order
-    );
-    created := created + 1;
-  end loop;
 
   update public.profiles set onboarded_at = now() where user_id = uid;
 
