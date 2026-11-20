@@ -28,7 +28,17 @@ Architecture decisions and their reasons: `docs/PRODUCT_DECISIONS.md`.
 5. **AI interprets; code decides.** The assistant proposes validated drafts.
    It performs no arithmetic, holds no credentials client-side, and gets only
    its own module's tools. There is no raw SQL tool.
-6. **Never hardcode financial assumptions.** Seed figures belong to one user's
+6. **A `SECURITY INVOKER` function in `public` must not call `app_private`.**
+   `authenticated` has no `USAGE` on that schema, so the call fails with
+   *permission denied* for every real user — while tests that run as a
+   privileged role still pass. Helpers needed by invoker functions belong in
+   `public`, where `SECURITY INVOKER` keeps them safe: they read through the
+   caller's own RLS. This has bitten twice.
+7. **RLS is not a grant.** A table needs `GRANT` as well as policies, or every
+   query fails with *permission denied for table*. The local Supabase stack
+   grants by default and the hosted project does not, so this passes locally
+   and fails in production. `audit_rls()` now checks for it.
+8. **Never hardcode financial assumptions.** Seed figures belong to one user's
    account, never to table defaults or migration literals.
 
 ## Layout

@@ -45,7 +45,11 @@ create index transaction_audit_user_txn_idx
 -- Snapshot helper
 -- ---------------------------------------------------------------------------
 
-create or replace function app_private.snapshot_transaction(p_transaction_id uuid)
+-- Lives in public, not app_private: a SECURITY INVOKER function in public
+-- cannot call into app_private, because the authenticated role has no USAGE
+-- there. It is safe to expose — SECURITY INVOKER means it reads through the
+-- caller's own RLS, so it returns nothing they could not already select.
+create or replace function public.transaction_snapshot(p_transaction_id uuid)
 returns jsonb
 language sql
 stable
@@ -101,7 +105,7 @@ begin
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
 
-  before := app_private.snapshot_transaction(p_transaction_id);
+  before := public.transaction_snapshot(p_transaction_id);
   if before is null then
     -- Either it does not exist or RLS hides it; both are "not yours".
     raise exception 'transaction not found' using errcode = 'no_data_found';
@@ -141,7 +145,7 @@ begin
 
   insert into public.transaction_audit (user_id, transaction_id, action, before, after)
   values (uid, p_transaction_id, 'update', before,
-          app_private.snapshot_transaction(p_transaction_id));
+          public.transaction_snapshot(p_transaction_id));
 
   return p_transaction_id;
 end;
@@ -171,7 +175,7 @@ begin
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
 
-  before := app_private.snapshot_transaction(p_transaction_id);
+  before := public.transaction_snapshot(p_transaction_id);
   if before is null then
     raise exception 'transaction not found' using errcode = 'no_data_found';
   end if;
@@ -182,7 +186,7 @@ begin
 
   insert into public.transaction_audit (user_id, transaction_id, action, before, after)
   values (uid, p_transaction_id, 'delete', before,
-          app_private.snapshot_transaction(p_transaction_id));
+          public.transaction_snapshot(p_transaction_id));
 
   return p_transaction_id;
 end;
@@ -202,7 +206,7 @@ begin
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
 
-  before := app_private.snapshot_transaction(p_transaction_id);
+  before := public.transaction_snapshot(p_transaction_id);
   if before is null then
     raise exception 'transaction not found' using errcode = 'no_data_found';
   end if;
@@ -211,11 +215,14 @@ begin
 
   insert into public.transaction_audit (user_id, transaction_id, action, before, after)
   values (uid, p_transaction_id, 'restore', before,
-          app_private.snapshot_transaction(p_transaction_id));
+          public.transaction_snapshot(p_transaction_id));
 
   return p_transaction_id;
 end;
 $$;
+
+revoke all on function public.transaction_snapshot(uuid) from public, anon;
+grant execute on function public.transaction_snapshot(uuid) to authenticated;
 
 revoke all on function public.update_transaction(uuid, jsonb) from public, anon;
 revoke all on function public.delete_transaction(uuid) from public, anon;
