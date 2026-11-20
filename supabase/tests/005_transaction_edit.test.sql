@@ -91,19 +91,25 @@ select is(pg_temp.spend_on('e0000002-0000-0000-0000-000000000002'), 0::bigint, '
 select is(pg_temp.spend_on('e0000003-0000-0000-0000-000000000003'), 65000::bigint, 'rent now holds it');
 
 -- An unbalanced correction must be refused, same as an unbalanced create.
+-- The balance trigger is deferred, so the violation surfaces when constraints
+-- are forced immediate rather than at the update itself.
+savepoint before_bad_update;
+select public.update_transaction(
+  (select id from public.transactions limit 1),
+  $x$ {
+    "postings": [
+      {"ledger_account_id": "e0000003-0000-0000-0000-000000000003", "amount": 65000},
+      {"ledger_account_id": "e0000001-0000-0000-0000-000000000001", "amount": -1}
+    ]
+  } $x$::jsonb);
+
 select throws_ok(
-  $$ select public.update_transaction(
-       (select id from public.transactions limit 1),
-       $x$ {
-         "postings": [
-           {"ledger_account_id": "e0000003-0000-0000-0000-000000000003", "amount": 65000},
-           {"ledger_account_id": "e0000001-0000-0000-0000-000000000001", "amount": -1}
-         ]
-       } $x$::jsonb) $$,
+  $$ set constraints all immediate $$,
   23514,
   null,
   'an unbalanced correction is refused'
 );
+rollback to savepoint before_bad_update;
 set constraints all deferred;
 
 -- ---------------------------------------------------------------------------
