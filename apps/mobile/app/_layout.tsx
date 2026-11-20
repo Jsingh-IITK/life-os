@@ -14,6 +14,7 @@ import 'react-native-reanimated';
 import { Splash } from '@/components/Splash';
 import { ThemeProvider, useTheme } from '@/design/theme';
 import { SessionProvider, useSession } from '@/lib/auth/session';
+import { QueryProvider } from '@/lib/queries/client';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -55,7 +56,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <SessionProvider>
-        <RootLayoutNav />
+        {/* Inside SessionProvider: queries are scoped by user id, so the
+            cache must not outlive the session that filled it. */}
+        <QueryProvider>
+          <RootLayoutNav />
+        </QueryProvider>
       </SessionProvider>
     </ThemeProvider>
   );

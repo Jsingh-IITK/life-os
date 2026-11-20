@@ -7,7 +7,7 @@
 -- WITH CHECK will fail this test.
 
 begin;
-select plan(14);
+select plan(17);
 
 -- ---------------------------------------------------------------------------
 -- Domains
@@ -113,6 +113,28 @@ select ok(
    where n.nspname = 'public' and c.relname = 'account_balances')
   @> array['security_invoker=true'],
   'account_balances view uses security_invoker'
+);
+
+-- ---------------------------------------------------------------------------
+-- Privileges. RLS decides which rows; it grants no access to the table itself.
+-- Both are required, and the local stack's default privileges once masked the
+-- absence of explicit grants — the hosted project had none, so every query
+-- failed with "permission denied for table" in production while tests passed.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  has_table_privilege('authenticated', 'public.ledger_accounts', 'SELECT'),
+  'authenticated can SELECT ledger_accounts'
+);
+
+select ok(
+  not has_table_privilege('anon', 'public.ledger_accounts', 'SELECT'),
+  'anon cannot SELECT ledger_accounts'
+);
+
+select ok(
+  has_table_privilege('authenticated', 'public.account_balances', 'SELECT'),
+  'authenticated can SELECT the account_balances view'
 );
 
 select * from finish();

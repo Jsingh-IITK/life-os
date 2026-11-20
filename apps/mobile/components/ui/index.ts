@@ -15,3 +15,5 @@ export { ProgressBar } from './ProgressBar';
 export { Ring } from './Ring';
 export { SectionHead } from './SectionHead';
 export { SampleNotice } from './SampleNotice';
+export { ErrorState } from './ErrorState';
+export { LoadingState } from './LoadingState';

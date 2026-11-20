@@ -102,10 +102,24 @@ try {
   );
 
   // --- tabs ----------------------------------------------------------------
-  for (const tab of ['Finance', 'Fitness', 'Assistant', 'Settings']) {
-    await page.getByText(tab, { exact: true }).first().click();
-    await page.waitForTimeout(900);
-    record(`${tab} tab opens`, await page.getByText(tab, { exact: true }).first().isVisible());
+  // Assert each screen's own heading, not the nav label: the label stays
+  // visible whether or not navigation actually happened, so the previous
+  // version of this check would pass against a broken router.
+  const TABS = [
+    { tab: 'Finance', path: '/finance', heading: 'Make your money make sense.' },
+    { tab: 'Fitness', path: '/fitness', heading: 'Train with intention.' },
+    { tab: 'Assistant', path: '/assistant', heading: 'Assistant' },
+    { tab: 'Settings', path: '/settings', heading: 'Settings' },
+  ];
+  for (const { tab, path, heading } of TABS) {
+    await page.getByRole('link', { name: tab }).first().click();
+    await page.waitForURL(`**${path}`, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    record(
+      `${tab} opens its own screen`,
+      page.url().includes(path) && (await page.getByText(heading).first().isVisible().catch(() => false)),
+      page.url(),
+    );
   }
 
   record(
