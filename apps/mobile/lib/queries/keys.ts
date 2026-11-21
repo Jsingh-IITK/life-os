@@ -12,6 +12,11 @@ export const queryKeys = {
   accounts: (userId: string) => ['accounts', userId] as const,
   balances: (userId: string) => ['balances', userId] as const,
   transactions: (userId: string) => ['transactions', userId] as const,
+  /** Fitness. Never invalidated by ledger writes, and vice versa. */
+  trainingPlan: (userId: string) => ['training-plan', userId] as const,
+  recentSessions: (userId: string) => ['recent-sessions', userId] as const,
+  workoutSession: (userId: string, sessionId: string) =>
+    ['workout-session', userId, sessionId] as const,
 } as const;
 
 /**
