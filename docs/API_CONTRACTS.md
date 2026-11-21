@@ -1,41 +1,103 @@
 # API contracts
 
-**Status:** placeholder. Contracts are defined in Phase 1 (RPC + Edge Function
-skeleton) and filled in as each phase lands. Schemas live in
-`packages/shared-validation` so one definition serves the client, the Edge
-Functions and AI output validation.
+**Status (2026-11-21):** the database RPCs below are shipped. The app calls
+them through `supabase.rpc()` from `apps/mobile/lib/queries/`. Edge Functions
+and AI tools are **planned** (Phase 4); none exist yet.
 
-## Planned surfaces
+Plain reads (accounts, balances, history, budgets, plan, sessions) go through
+PostgREST table and view selects under RLS, not RPCs. RPCs exist only where a
+write must be atomic or must run logic the client should not be trusted with.
 
-### Database RPC
+All shipped RPCs are `SECURITY INVOKER` with `search_path = ''`, executable by
+`authenticated` only (revoked from `anon` and `public`). The user id always
+comes from the verified JWT (`auth.uid()`); any `user_id` in a payload is
+ignored.
 
-| Function | Phase | Notes |
+## Database RPC — shipped
+
+### Finance
+
+| Function | Returns | Notes |
 |---|---|---|
-| `post_transaction(payload jsonb)` | 1 | The only write path for transactions. Inserts header + balanced legs in one server-side transaction, because the Supabase client cannot open a multi-statement transaction. |
-| `log_workout_session(payload jsonb)` | 5 | Session + exercises + sets atomically, with template values snapshotted. |
+| `onboard_finance(payload jsonb default '{}')` | `jsonb` | Creates the user's starting chart of accounts and income source. Payload (all optional): `bank_name`, `with_card`, `with_cash`, `with_investments`, `payroll_mode` (`net`/`gross`), `expected_income` (paise). No figures are hardcoded: amounts come from the payload. |
+| `post_transaction(payload jsonb)` | `uuid` | The only write path for new transactions: header + 2 or more legs in one server-side transaction, because the Supabase client cannot open a multi-statement transaction. A deferred constraint trigger rejects legs that do not sum to zero. |
+| `update_transaction(p_transaction_id uuid, payload jsonb)` | `uuid` | Replaces header and legs atomically; same payload as `post_transaction`. Writes before/after to `transaction_audit`. |
+| `delete_transaction(p_transaction_id uuid)` | `uuid` | Soft delete (`deleted_at`), audited. Balances stop counting it immediately. |
+| `restore_transaction(p_transaction_id uuid)` | `uuid` | Undoes a soft delete, audited. |
+| `transaction_snapshot(p_transaction_id uuid)` | `jsonb` | Header + legs as JSON; used for audit rows. Stable, read-only. |
 
-### Edge Functions
+`post_transaction` / `update_transaction` payload:
 
-| Function | Phase | Notes |
+```jsonc
+{
+  "txn_date": "2026-11-21",          // DATE in the user's timezone, not a timestamp
+  "type": "expense",                 // income | expense | transfer | cc_purchase | cc_repayment
+                                     // | investment_buy | investment_sell | refund
+                                     // | adjustment | opening_balance
+  "description": "Lunch",            // optional
+  "merchant": "…",                   // optional
+  "payment_method": "upi",           // optional; null means unspecified, never inferred
+  "notes": "…",                      // optional
+  "reverses_transaction_id": null,   // optional; refunds point at the original
+  "idempotency_key": null,           // optional; unique per user
+  "postings": [                      // 2+ legs, integer paise, debit-positive, sum = 0
+    { "ledger_account_id": "…", "amount": 30000, "memo": "optional" },
+    { "ledger_account_id": "…", "amount": -30000 }
+  ]
+}
+```
+
+Clients build legs with `finance-core` (`Postings` builders →
+`toRpcPostings`), never by hand.
+
+### Fitness
+
+| Function | Returns | Notes |
 |---|---|---|
-| `ai-extract` | 4 | Natural language → structured draft. Returns a proposal; never writes. |
-| `ai-chat` | 4 | Grounded Q&A over the caller's own data. |
+| `seed_training_programme()` | `jsonb` `{exercises, templates, plan_days}` | Creates the caller's exercise library, templates and active weekly plan. |
+| `start_workout_session(p_template_id uuid, p_performed_on date)` | `uuid` | Creates an `in_progress` session and snapshots the template's exercises in one transaction. Idempotent per template per date: re-calling returns the existing session. Raises `P0002` if the template is not the caller's. |
+| `complete_workout_session(p_session_id uuid)` | `void` | Marks an `in_progress` session `completed`. Raises `23514` if it has no working sets (non-warm-up, reps > 0) or is not in progress; `P0002` if not the caller's. |
 
-Both build their Supabase client from the caller's JWT, never the service role.
+Sets are logged and removed with plain inserts and deletes on `workout_sets`
+under RLS. Each set is one row, so no RPC is needed for atomicity. An earlier
+draft planned a single `log_workout_session(payload jsonb)`; that was replaced
+by the start → log sets → complete lifecycle so a session survives a dropped
+connection mid-workout.
 
-## AI tool families
+### Error codes clients rely on
 
-Narrow, typed tools only — there is no raw SQL tool. The router exposes **one
+| SQLSTATE | Meaning |
+|---|---|
+| `42501` `insufficient_privilege` | Not authenticated. |
+| `P0002` `no_data_found` | Target row missing or not the caller's (RLS makes the two indistinguishable, on purpose). |
+| `23514` `check_violation` | A business rule refused the write (unbalanced legs, invalid state transition, nothing logged). |
+| `23505` `unique_violation` | Duplicate (idempotency key, set index, one budget per month). |
+| `23502` `not_null_violation` | A required argument was null (e.g. a session with no date). |
+
+## Edge Functions — planned (Phase 4)
+
+| Function | Notes |
+|---|---|
+| `ai-extract` | Natural language → structured draft. Returns a proposal; never writes. |
+| `ai-chat` | Grounded Q&A over the caller's own data. |
+
+Both will build their Supabase client from the caller's JWT, never the service
+role. Provider credentials live only in Edge Function secrets.
+
+## AI tool families — planned (Phase 4)
+
+Narrow, typed tools only. There is no raw SQL tool. The router exposes **one
 module's** tools per request, so a fitness request cannot reach financial data.
 
 **Finance:** `create_transaction_draft`, `get_transaction_history`,
 `get_spending_summary`, `get_budget_status`, `get_account_balances`,
 `get_net_worth`, `get_investment_summary`, `calculate_affordability`.
 
-**Fitness:** `create_workout_draft`, `log_workout_session`,
-`update_workout_session`, `get_workout_history`, `get_exercise_progress`,
-`get_personal_records`, `update_workout_schedule`, `get_training_consistency`.
+**Fitness:** `create_workout_draft`, `start_workout_session`, `log_set`,
+`get_workout_history`, `get_exercise_progress`, `get_personal_records`,
+`update_workout_schedule`, `get_training_consistency`.
 
-Each tool declares a Zod schema for **both** input and output. Model output is
-treated as untrusted: validated before execution, never trusted to carry a
-computed figure.
+Each tool will declare a schema for **both** input and output (library not yet
+chosen; Zod is not currently installed). Model output is treated as untrusted:
+validated before execution, never trusted to carry a computed figure. Write
+tools produce drafts that the user confirms.
