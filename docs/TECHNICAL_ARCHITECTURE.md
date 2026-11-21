@@ -7,27 +7,41 @@
 | Client | Expo 58, React Native 0.88, Expo Router — Android (priority) + Expo Web from one tree |
 | Language | TypeScript 6.0.3, strict (see [D10](./PRODUCT_DECISIONS.md)) |
 | Backend | Supabase — PostgreSQL, Auth, RLS, Edge Functions |
-| Client state | Zustand (local), TanStack Query (server), Zod (validation) |
-| Tests | Vitest (engines), pgTAP (RLS and database) |
+| Client state | TanStack Query (server state); React state for the rest. Zustand and Zod are not installed: add them when a real need appears, not ahead of it. |
+| Tests | Vitest (engines), pgTAP (RLS and database), Playwright smoke (`pnpm smoke`) |
 | Shape | Modular monolith. No microservices. |
 
 ## Layout
 
+As built. Directories marked *planned* do not exist yet.
+
 ```
-apps/mobile/              Expo Router app
+apps/mobile/
   app/(tabs)/             home, finance, fitness, assistant, settings
-  features/               UI per domain — no arithmetic
+  app/(auth)/             sign-in, sign-up, forgot-password
+  app/                    transactions, transaction/new, transaction/[id], budget, accounts
+  components/ui/          design system primitives (Card, Button, Input, ListRow, …)
+  components/finance/     finance-specific composites
+  components/nav/         sidebar / tab chrome
+  design/                 tokens.ts, theme.tsx (light/dark/system)
+  lib/auth/               session provider, auth error mapping
+  lib/queries/            TanStack Query hooks per domain — no arithmetic
 packages/
-  finance-core/           double-entry engine, budgets, lots, valuation, net worth
-  fitness-core/           volume, progression, PRs, consistency
-  ai-core/                provider interface, typed tool registry, module routing
-  shared-types/           domain + generated database types
-  shared-validation/      Zod schemas shared by client, Edge Functions and AI
-  ui/                     design system primitives
+  finance-core/           money (paise), posting builders, budget status
+  fitness-core/           measures (grams/seconds/metres), volume
 supabase/
-  migrations/ functions/ seed/ tests/
+  migrations/             0001–0015
+  tests/                  pgTAP, 001–009
+scripts/                  smoke.mjs, check-plans.mjs, ci.sh
 docs/
 ```
+
+Planned, not yet created: `finance-core` lots, valuation and net worth
+(Phase 3); `fitness-core` PRs, progression and consistency (Phase 5);
+`supabase/functions/` and an AI package for the assistant (Phase 4). Earlier
+drafts of this document listed `ai-core`, `shared-types`, `shared-validation`
+and `ui` packages; none were created, and UI primitives live in
+`apps/mobile/components/ui` instead.
 
 ## Enforced boundaries
 
@@ -35,6 +49,7 @@ Not conventions — build failures. See `eslint.config.mjs` and
 [D9](./PRODUCT_DECISIONS.md).
 
 - `apps/*` performs no financial or training arithmetic; it calls the engines.
+  (A convention checked in review, not a lint rule.)
 - `finance-core` and `fitness-core` import no Supabase, React, or Node builtins.
 - **`fitness-core` and `finance-core` never import each other.** This is how the
   PRD's rule that a fitness request cannot reach financial data becomes
@@ -57,7 +72,7 @@ training invariant to be a unit test rather than a manual check.
 ## Data flow for a financial write
 
 ```
-UI → Zod validate → finance-core builds balanced postings
+UI → finance-core parses amounts and builds balanced postings
    → post_transaction(jsonb) RPC  ← single server-side transaction
    → deferred constraint trigger asserts postings sum to zero
    → balances/budgets derive on read; nothing to recalculate
@@ -84,7 +99,7 @@ sum to zero, and every derived balance equals the sum of its postings.
 user text → router picks ONE module
           → only that module's typed tools are exposed
           → model returns a structured proposal
-          → Zod validates it as untrusted input
+          → schema-validated as untrusted input
           → domain service executes; deterministic code does all arithmetic
           → ai_action_logs records proposal + execution
 ```
@@ -103,12 +118,12 @@ justifies them.
 
 ## Phases
 
-| Phase | Delivers |
-|---|---|
-| 0 | Repo, workspace, shell, money/measure primitives, CI, docs |
-| 1 | Auth, profiles, preferences, chart of accounts, transactions + postings, **RLS + pgTAP**, design system, AI interface + stub |
-| 2 | Finance core — accounts, all transaction types, history, budgets, dashboard |
-| 3 | Finance wealth — five asset classes, FIFO lots, valuations, emergency fund, net worth, XIRR |
-| 4 | Finance conversational AI — provider selection gate, finance tools |
-| 5 | Fitness MVP — library, plans, templates, diary, fitness tools |
-| 6 | Advanced analytics, cross-module dashboard; Habits/Journal only once stable |
+| Phase | Delivers | State (2026-11-21) |
+|---|---|---|
+| 0 | Repo, workspace, shell, money/measure primitives, CI, docs | ✅ |
+| 1 | Auth, profiles, preferences, chart of accounts, transactions + postings, **RLS + pgTAP**, design system, AI interface + stub | ✅ except the AI interface/stub |
+| 2 | Finance core — accounts, all transaction types, history, budgets, dashboard | ✅ |
+| 3 | Finance wealth — five asset classes, FIFO lots, valuations, emergency fund, net worth, XIRR | ⏳ not started |
+| 4 | Finance conversational AI — provider selection gate, finance tools | ⏳ not started |
+| 5 | Fitness MVP — library, plans, templates, diary, fitness tools | 🟡 schema, views, seeded programme, session start/complete; no UI |
+| 6 | Advanced analytics, cross-module dashboard; Habits/Journal only once stable | ⏳ |
