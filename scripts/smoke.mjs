@@ -87,14 +87,15 @@ try {
   record('sign-in leaves the auth screens', !page.url().includes('/sign-in'), page.url());
   record(
     'home dashboard renders after sign-in',
-    await page.getByText('A little progress adds up.').isVisible().catch(() => false),
+    await page.getByText('Income this month').isVisible().catch(() => false),
   );
-  // Placeholder figures are acceptable only while they are unmistakably
-  // labelled. If this notice ever disappears while the sample data is still
-  // wired up, the screen is lying about whose money it shows.
+  // The placeholder module is gone. A fresh account has no data, so Home must
+  // say so rather than showing figures from anywhere — if any of the old
+  // sample numbers reappear, something is fabricating them again.
   record(
-    'placeholder figures carry the sample-data notice',
-    await page.getByText('Sample data', { exact: false }).first().isVisible().catch(() => false),
+    'home shows no fabricated figures for an empty account',
+    !(await page.getByText('₹48,250').isVisible().catch(() => false)) &&
+      !(await page.getByText('₹4,82,600').isVisible().catch(() => false)),
   );
   record(
     'future modules are marked coming soon, not live',

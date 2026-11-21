@@ -2,6 +2,7 @@ import { Budgets, Money } from '@life-os/finance-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth/session';
+import { queryKeys } from '@/lib/queries/keys';
 import { supabase } from '@/lib/supabase';
 
 /** First day of a month, in local time. */
@@ -16,7 +17,8 @@ export function monthLabel(iso: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 }
 
-const budgetKey = (userId: string, month: string) => ['budget', userId, month] as const;
+const budgetKey = (userId: string, month: string) =>
+  [...queryKeys.budget(userId), month] as const;
 
 export interface BudgetView {
   budgetId: string | null;

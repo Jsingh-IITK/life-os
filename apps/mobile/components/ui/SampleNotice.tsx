@@ -3,16 +3,16 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/design/theme';
 import { radius, space } from '@/design/tokens';
-import { SAMPLE_NOTICE } from '@/lib/placeholder';
 
 /**
- * Marks a screen whose figures come from the placeholder module.
+ * A conspicuous caveat above figures that are not yet the user's own —
+ * because the data is empty, provisional, or otherwise not what it appears.
  *
- * Deliberately conspicuous. The point is that no number on the screen can be
- * mistaken for the user's own, which is the condition under which showing
- * sample figures at all is acceptable.
+ * Originally marked placeholder data, which no longer exists anywhere in the
+ * app. It is kept for the weaker case: real figures that are all zero and
+ * would otherwise look like a broken screen rather than an empty one.
  */
-export function SampleNotice({ text = SAMPLE_NOTICE }: { text?: string }) {
+export function SampleNotice({ text }: { text: string }) {
   const colors = useColors();
   return (
     <View

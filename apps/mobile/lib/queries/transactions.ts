@@ -2,7 +2,7 @@ import { Money, Postings } from '@life-os/finance-core';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth/session';
-import { queryKeys } from '@/lib/queries/keys';
+import { ledgerCaches, queryKeys } from '@/lib/queries/keys';
 import { supabase } from '@/lib/supabase';
 
 export interface TransactionRow {
@@ -164,9 +164,9 @@ export function usePostTransaction() {
     },
     onSuccess: () => {
       if (!userId) return;
-      // Balances are derived from postings, so both caches are now stale.
-      void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
-      void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+      for (const key of ledgerCaches(userId)) {
+        void client.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }
@@ -241,8 +241,9 @@ export function useUpdateTransaction() {
     },
     onSuccess: () => {
       if (!userId) return;
-      void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
-      void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+      for (const key of ledgerCaches(userId)) {
+        void client.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }
@@ -260,8 +261,9 @@ export function useDeleteTransaction() {
     },
     onSuccess: () => {
       if (!userId) return;
-      void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
-      void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+      for (const key of ledgerCaches(userId)) {
+        void client.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }

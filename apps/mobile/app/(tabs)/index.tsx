@@ -1,162 +1,225 @@
+import { Money } from '@life-os/finance-core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import {
   Button,
   Card,
+  EmptyState,
+  ErrorState,
   Grid,
-  HeroCard,
   ListRow,
-  Pill,
+  LoadingState,
   ProgressBar,
-  SampleNotice,
   Screen,
   SectionHead,
   Text,
 } from '@/components/ui';
-import { useColors } from '@/design/theme';
-import { radius, space } from '@/design/tokens';
-import { home } from '@/lib/placeholder';
+import { space } from '@/design/tokens';
+import { netWorth, useAccountBalances, useHasChartOfAccounts } from '@/lib/queries/accounts';
+import { monthKey, useBudget } from '@/lib/queries/budgets';
+import { useMonthSummary } from '@/lib/queries/summary';
+import { useTransactions } from '@/lib/queries/transactions';
+import { useSession } from '@/lib/auth/session';
+
+const TYPE_LABELS: Partial<Record<string, string>> = {
+  transfer: 'Transfer',
+  cc_repayment: 'Card repayment',
+  investment_buy: 'Investment purchase',
+  investment_sell: 'Investment redemption',
+  opening_balance: 'Opening balance',
+  adjustment: 'Adjustment',
+};
 
 export default function HomeScreen() {
   const router = useRouter();
-  const colors = useColors();
+  const { session } = useSession();
+  const month = monthKey();
 
+  const accounts = useHasChartOfAccounts();
+  const summary = useMonthSummary(month);
+  const balances = useAccountBalances();
+  const budget = useBudget(month);
+  const recent = useTransactions(5);
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const name = session?.user.email?.split('@')[0] ?? 'there';
   const today = new Date()
-    .toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
+    .toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
     .toUpperCase();
 
+  if (accounts.isPending || summary.isPending) {
+    return (
+      <Screen eyebrow={today} title={`${greeting}, ${name}`}>
+        <LoadingState label="Loading your month…" />
+      </Screen>
+    );
+  }
+
+  if (summary.isError) {
+    return (
+      <Screen eyebrow={today} title={`${greeting}, ${name}`}>
+        <ErrorState message={summary.error.message} onRetry={() => void summary.refetch()} />
+      </Screen>
+    );
+  }
+
+  // No chart of accounts means nothing can be recorded yet; say so plainly
+  // rather than showing a wall of zeroes.
+  if ((accounts.data?.length ?? 0) === 0) {
+    return (
+      <Screen eyebrow={today} title={`${greeting}, ${name}`}>
+        <EmptyState
+          title="Set up your accounts to begin"
+          description="Life OS needs a chart of accounts before it can record anything. It takes one tap and posts no amounts — every balance starts at zero."
+          actionLabel="Go to Finance"
+          onAction={() => router.push('/finance')}
+        />
+      </Screen>
+    );
+  }
+
+  const s = summary.data!;
+  const worth = netWorth(balances.data ?? []);
+  const budgetSummary = budget.data?.summary;
+  const hasBudget = (budgetSummary?.allocations.length ?? 0) > 0;
+  const rows = recent.data ?? [];
+
   return (
-    <Screen eyebrow={today} title="Your life, in view.">
-      <SampleNotice />
-
-      <HeroCard
-        eyebrow="YOUR PERSONAL LIFE OS"
-        title="A little progress adds up."
-        body="Your money and training, in one calm place. Here's the snapshot of how things are moving."
-        statLabel="This month's focus"
-        statValue="Stay consistent"
-        statCaption="Money · Movement · Momentum"
-      />
-
+    <Screen eyebrow={today} title={`${greeting}, ${name}`}>
       <Grid columns={4}>
         <Card style={styles.metricCard}>
-          <Text variant="caption" color="textSecondary">Monthly income</Text>
-          <Text variant="metric" tabular style={styles.metric}>{home.monthlyIncome}</Text>
-          <Text variant="caption" color="success">↗ Stable this month</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text variant="caption" color="textSecondary">Total expenses</Text>
-          <Text variant="metric" tabular style={styles.metric}>{home.totalExpenses}</Text>
-          <View style={styles.metricFoot}>
-            <Text variant="caption" color="textSecondary">of {home.plannedExpenses} planned</Text>
-            <Pill label={`${Math.round(home.expensesPct * 100)}%`} tone="brand" />
-          </View>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text variant="caption" color="textSecondary">Workouts this week</Text>
-          <Text variant="metric" tabular style={styles.metric}>
-            {home.workoutsDone} <Text variant="caption" color="textSecondary">/ {home.workoutsPlanned}</Text>
-          </Text>
-          <Text variant="caption" color="success">↗ 2 sessions to go</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text variant="caption" color="textSecondary">Savings this month</Text>
-          <Text variant="metric" tabular style={styles.metric}>{home.savings}</Text>
-          <Text variant="caption" color="success">✓ Monthly target reached</Text>
-        </Card>
-      </Grid>
-
-      <Grid columns={2}>
-        <Card style={styles.panel}>
-          <SectionHead
-            title="Money overview"
-            subtitle="Your monthly spending at a glance"
-            trailing={
-              <Button label="Open finance →" variant="ghost" size="small" onPress={() => router.push('/finance')} />
-            }
-          />
-          <View style={styles.pair}>
-            <View style={styles.pairItem}>
-              <Text variant="caption" color="textSecondary">Available after expenses</Text>
-              <Text variant="metric" tabular style={styles.metric}>{home.availableAfterExpenses}</Text>
-              <Text variant="caption" color="textSecondary">Income minus recorded expenses</Text>
-            </View>
-            <View style={styles.pairItem}>
-              <Text variant="caption" color="textSecondary">Savings rate</Text>
-              <Text variant="metric" tabular style={styles.metric}>{home.savingsRate}</Text>
-              <Text variant="caption" color="success">On track with your goal</Text>
-            </View>
-          </View>
-          <ProgressBar
-            value={home.expensesPct}
-            label="Monthly expense budget"
-            detail={`${home.totalExpenses} / ${home.plannedExpenses}`}
-          />
-        </Card>
-
-        <Card style={styles.panel}>
-          <SectionHead
-            title="This week's training"
-            subtitle="A quick look at your routine"
-            trailing={
-              <Button label="Open fitness →" variant="ghost" size="small" onPress={() => router.push('/fitness')} />
-            }
-          />
-          <View style={styles.week}>
-            {home.week.map((d) => {
-              const isToday = d.state === 'today';
-              return (
-                <View
-                  key={d.day}
-                  style={[
-                    styles.day,
-                    {
-                      backgroundColor: isToday ? colors.brandSubtle : colors.surfaceSecondary,
-                      borderColor: isToday ? colors.brandPrimary : colors.borderPrimary,
-                    },
-                  ]}>
-                  <Text variant="caption" color="textSecondary" style={styles.dayLabel}>{d.day}</Text>
-                  <Text variant="secondary" tabular style={styles.dayNum}>{d.date}</Text>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: d.state === 'rest' ? colors.borderPrimary : colors.brandPrimary },
-                    ]}
-                  />
-                </View>
-              );
-            })}
-          </View>
-          <ListRow icon="🥊" title="Boxing" meta="Today's planned session" trailing={<Pill label="Planned" tone="brand" />} last />
-        </Card>
-      </Grid>
-
-      <Grid columns={2}>
-        <Card style={styles.panel}>
-          <SectionHead title="Recent activity" trailing={<Button label="See all" variant="ghost" size="small" onPress={() => router.push('/finance')} />} />
-          {home.recent.map((item, i) => (
-            <ListRow
-              key={item.title}
-              icon={item.icon}
-              title={item.title}
-              meta={item.meta}
-              amount={'amount' in item ? item.amount : undefined}
-              trailing={'badge' in item ? <Pill label={item.badge} tone="brand" /> : undefined}
-              last={i === home.recent.length - 1}
-            />
-          ))}
-        </Card>
-
-        <Card style={styles.panel}>
-          <SectionHead title="Your next small win" trailing={<Pill label="Today" />} />
-          <Text variant="sectionHeading" style={styles.winTitle}>Show up for the session.</Text>
+          <Text variant="caption" color="textSecondary">Income this month</Text>
+          <Text variant="metric" tabular style={styles.metric}>{Money.formatINR(s.income)}</Text>
           <Text variant="caption" color="textSecondary">
-            Consistency beats a perfect week. Your planned boxing session is next on the calendar.
+            {Money.isZero(s.realizedGains) ? 'Earnings only' : `Plus ${Money.formatINR(s.realizedGains)} realized gains`}
           </Text>
-          <Button label="View workout plan" onPress={() => router.push('/fitness')} style={styles.winButton} />
+        </Card>
+
+        <Card style={styles.metricCard}>
+          <Text variant="caption" color="textSecondary">Spent this month</Text>
+          <Text variant="metric" tabular style={styles.metric}>{Money.formatINR(s.expenses)}</Text>
+          <Text variant="caption" color="textSecondary">Excludes transfers and investments</Text>
+        </Card>
+
+        <Card style={styles.metricCard}>
+          <Text variant="caption" color="textSecondary">Saved this month</Text>
+          <Text
+            variant="metric"
+            tabular
+            color={Money.isNegative(s.saved) ? 'danger' : 'textPrimary'}
+            style={styles.metric}>
+            {Money.formatINR(s.saved)}
+          </Text>
+          {/* A rate of 0% would claim you saved nothing; "no income yet" is a
+              different statement, so it is said differently. */}
+          <Text variant="caption" color="textSecondary">
+            {s.savingsRate === null
+              ? 'No income recorded yet'
+              : `${Math.round(s.savingsRate * 100)}% of income`}
+          </Text>
+        </Card>
+
+        <Card style={styles.metricCard}>
+          <Text variant="caption" color="textSecondary">Net worth</Text>
+          <Text variant="metric" tabular style={styles.metric}>{Money.formatINR(worth)}</Text>
+          <Text variant="caption" color="textSecondary">Assets minus liabilities</Text>
         </Card>
       </Grid>
+
+      <Grid columns={2}>
+        <Card style={styles.panel}>
+          <SectionHead
+            title="Budget"
+            subtitle={hasBudget ? 'Where this month stands' : 'Not set for this month'}
+            trailing={
+              <Button
+                label={hasBudget ? 'Open →' : 'Set one up'}
+                variant="ghost"
+                size="small"
+                onPress={() => router.push('/budget')}
+              />
+            }
+          />
+          {hasBudget && budgetSummary ? (
+            <View style={styles.budget}>
+              <ProgressBar
+                value={budgetSummary.utilisation}
+                label="Overall"
+                detail={`${Money.formatINR(budgetSummary.totalActual)} / ${Money.formatINR(budgetSummary.totalPlanned)}`}
+                tone={
+                  budgetSummary.utilisation > 1
+                    ? 'danger'
+                    : budgetSummary.utilisation >= 0.85
+                      ? 'warning'
+                      : 'brand'
+                }
+              />
+              {budgetSummary.overCategories.length > 0 ? (
+                <Text variant="caption" color="danger">
+                  Over in {budgetSummary.overCategories.map((c) => c.categoryName).join(', ')}.
+                </Text>
+              ) : (
+                <Text variant="caption" color="textSecondary">
+                  {Money.formatINR(budgetSummary.totalRemaining)} left to spend.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Text variant="secondary" color="textSecondary" style={styles.quiet}>
+              Set a monthly budget to see how your spending compares to the plan.
+            </Text>
+          )}
+        </Card>
+
+        <Card style={styles.panel}>
+          <SectionHead
+            title="Fitness"
+            subtitle="Not built yet"
+            trailing={<Button label="Open →" variant="ghost" size="small" onPress={() => router.push('/fitness')} />}
+          />
+          {/* No fitness schema exists, so there is nothing to report. Saying
+              so beats inventing a streak. */}
+          <Text variant="secondary" color="textSecondary" style={styles.quiet}>
+            Training plans and workout logging arrive after Finance is
+            complete. Nothing is tracked yet.
+          </Text>
+        </Card>
+      </Grid>
+
+      <Card style={styles.panel}>
+        <SectionHead
+          title="Recent activity"
+          subtitle={s.transactionCount === 0 ? undefined : `${s.transactionCount} this month`}
+          trailing={
+            <Button label="See all →" variant="ghost" size="small" onPress={() => router.push('/transactions')} />
+          }
+        />
+        {rows.length === 0 ? (
+          <View style={styles.firstRun}>
+            <Text variant="secondary" color="textSecondary">
+              Nothing recorded yet. Your first transaction will appear here.
+            </Text>
+            <Button label="Add a transaction" size="small" onPress={() => router.push('/transaction/new')} />
+          </View>
+        ) : (
+          rows.map((t, i) => (
+            <ListRow
+              key={t.id}
+              onPress={() => router.push(`/transaction/${t.id}`)}
+              title={t.merchant || t.categoryName || TYPE_LABELS[t.type] || t.type}
+              meta={`${t.date}${t.categoryName ? ` · ${t.categoryName}` : ''}`}
+              amount={
+                (t.direction === 'in' ? '+' : t.direction === 'out' ? '−' : '') +
+                Money.formatINR(t.amount)
+              }
+              amountTone={t.direction === 'in' ? 'success' : 'textPrimary'}
+              last={i === rows.length - 1}
+            />
+          ))
+        )}
+      </Card>
     </Screen>
   );
 }
@@ -164,15 +227,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   metricCard: { gap: space[1], minHeight: 112 },
   metric: { fontSize: 25, letterSpacing: -1, marginTop: space[1] },
-  metricFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] },
   panel: { gap: 0 },
-  pair: { flexDirection: 'row', gap: space[4], flexWrap: 'wrap', marginBottom: space[4] },
-  pairItem: { flex: 1, minWidth: 140, gap: 2 },
-  week: { flexDirection: 'row', gap: space[1], marginBottom: space[2] },
-  day: { flex: 1, borderWidth: 1, borderRadius: radius.lg, paddingVertical: space[2], alignItems: 'center', gap: 2 },
-  dayLabel: { fontSize: 10 },
-  dayNum: { fontSize: 14 },
-  dot: { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
-  winTitle: { fontSize: 18, marginTop: space[3], marginBottom: space[1] },
-  winButton: { alignSelf: 'flex-start', marginTop: space[3] },
+  budget: { gap: space[2] },
+  quiet: { paddingVertical: space[2] },
+  firstRun: { gap: space[3], alignItems: 'flex-start', paddingVertical: space[3] },
 });
