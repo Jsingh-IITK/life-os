@@ -85,9 +85,18 @@ try {
   await page.waitForTimeout(1500);
 
   record('sign-in leaves the auth screens', !page.url().includes('/sign-in'), page.url());
+  // Either is correct depending on whether the account has been set up: an
+  // account with no chart of accounts must show the first-run prompt, not a
+  // wall of zeroes pretending to be a dashboard.
+  const dashboard = await page.getByText('Income this month').isVisible().catch(() => false);
+  const firstRun = await page
+    .getByText('Set up your accounts to begin')
+    .isVisible()
+    .catch(() => false);
   record(
-    'home dashboard renders after sign-in',
-    await page.getByText('Income this month').isVisible().catch(() => false),
+    'home shows the dashboard, or the first-run prompt when empty',
+    dashboard || firstRun,
+    dashboard ? 'dashboard' : firstRun ? 'first run' : 'neither',
   );
   // The placeholder module is gone. A fresh account has no data, so Home must
   // say so rather than showing figures from anywhere — if any of the old
