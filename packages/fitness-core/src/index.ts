@@ -7,4 +7,6 @@
  */
 
 export * as Measures from './measures/index';
+export * as Records from './records/index';
+export * as Progression from './progression/index';
 export type { Grams, Metres, Reps, Seconds } from './measures/units';
