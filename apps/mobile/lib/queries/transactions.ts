@@ -1,5 +1,5 @@
 import { Money, Postings } from '@life-os/finance-core';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useUserId } from '@/lib/auth/session';
 import { queryKeys } from '@/lib/queries/keys';
@@ -68,29 +68,7 @@ export function useTransactions(limit = 20) {
 
       if (error) throw new Error(error.message);
 
-      return (data ?? []).map((row) => {
-        const legs = (row.postings ?? []) as unknown as RawLeg[];
-
-        const classOf = (leg: RawLeg | undefined) => accountOf(leg)?.account_class;
-        const expenseLeg = legs.find((l) => classOf(l) === 'EXPENSE');
-        const incomeLeg = legs.find((l) => classOf(l) === 'INCOME');
-        const assetLeg = legs.find((l) => classOf(l) === 'ASSET');
-        const chosen = expenseLeg ?? incomeLeg ?? assetLeg ?? legs[0];
-
-        const type = row.type as Postings.TransactionType;
-
-        return {
-          id: row.id as string,
-          date: row.txn_date as string,
-          type,
-          description: (row.description as string | null) ?? null,
-          merchant: (row.merchant as string | null) ?? null,
-          paymentMethod: (row.payment_method as string | null) ?? null,
-          amount: Money.abs(Money.fromDatabase(chosen?.amount ?? 0)),
-          direction: directionFor(type),
-          categoryName: accountOf(chosen)?.name ?? null,
-        };
-      });
+      return (data ?? []).map(mapTransactionRow);
     },
   });
 }
@@ -115,6 +93,32 @@ function accountOf(leg: RawLeg | undefined): RawAccount | null {
   const rel = leg.ledger_accounts;
   if (!rel) return null;
   return Array.isArray(rel) ? (rel[0] ?? null) : rel;
+}
+
+/** Shared by the recent list and the paginated history. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTransactionRow(row: any): TransactionRow {
+  const legs = (row.postings ?? []) as RawLeg[];
+
+  const classOf = (leg: RawLeg | undefined) => accountOf(leg)?.account_class;
+  const expenseLeg = legs.find((l) => classOf(l) === 'EXPENSE');
+  const incomeLeg = legs.find((l) => classOf(l) === 'INCOME');
+  const assetLeg = legs.find((l) => classOf(l) === 'ASSET');
+  const chosen = expenseLeg ?? incomeLeg ?? assetLeg ?? legs[0];
+
+  const type = row.type as Postings.TransactionType;
+
+  return {
+    id: row.id as string,
+    date: row.txn_date as string,
+    type,
+    description: (row.description as string | null) ?? null,
+    merchant: (row.merchant as string | null) ?? null,
+    paymentMethod: (row.payment_method as string | null) ?? null,
+    amount: Money.abs(Money.fromDatabase(chosen?.amount ?? 0)),
+    direction: directionFor(type),
+    categoryName: accountOf(chosen)?.name ?? null,
+  };
 }
 
 export interface NewTransaction {
@@ -258,6 +262,67 @@ export function useDeleteTransaction() {
       if (!userId) return;
       void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
       void client.invalidateQueries({ queryKey: queryKeys.transactions(userId) });
+    },
+  });
+}
+
+/** A page boundary: the last row seen, used to anchor the next page. */
+interface Cursor {
+  date: string;
+  id: string;
+}
+
+export const HISTORY_PAGE_SIZE = 25;
+
+/**
+ * Full transaction history, paginated by keyset rather than OFFSET.
+ *
+ * OFFSET re-scans and skips every preceding row, so page 40 costs forty pages
+ * of work, and a transaction inserted while you are reading shifts every
+ * subsequent page by one — duplicating or hiding a row. Anchoring on the last
+ * row seen avoids both: each page asks for "older than this", which stays
+ * correct no matter what else is written.
+ *
+ * The anchor is (txn_date, id) because txn_date alone is not unique — several
+ * transactions share a day, and ordering by a non-unique key leaves the page
+ * boundary ambiguous.
+ */
+export function useTransactionHistory(pageSize = HISTORY_PAGE_SIZE) {
+  const userId = useUserId();
+
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.transactions(userId ?? 'anonymous'), 'history', pageSize],
+    enabled: userId !== null,
+    initialPageParam: null as Cursor | null,
+    queryFn: async ({ pageParam }) => {
+      let query = supabase
+        .from('transactions')
+        .select(
+          `id, txn_date, type, description, merchant, payment_method,
+           postings ( amount, ledger_accounts ( name, account_class ) )`,
+        )
+        .is('deleted_at', null)
+        .order('txn_date', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(pageSize);
+
+      if (pageParam) {
+        // Strictly older: an earlier date, or the same date with a lower id.
+        query = query.or(
+          `txn_date.lt.${pageParam.date},and(txn_date.eq.${pageParam.date},id.lt.${pageParam.id})`,
+        );
+      }
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+
+      return (data ?? []).map(mapTransactionRow);
+    },
+    getNextPageParam: (lastPage) => {
+      // A short page is the last page; asking again would return nothing.
+      if (lastPage.length < pageSize) return undefined;
+      const last = lastPage[lastPage.length - 1];
+      return last ? { date: last.date, id: last.id } : undefined;
     },
   });
 }

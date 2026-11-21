@@ -71,6 +71,17 @@ function RootLayoutNav() {
   const { session, loading } = useSession();
   const signedIn = session !== null;
 
+  // While the stored session is still being read, keep BOTH branches in the
+  // tree. Stack.Protected removes a failing branch's routes entirely, so
+  // excluding one here means a deep link to a route inside it does not exist
+  // at the moment the router resolves the URL — it falls back to the anchor
+  // and the destination is lost. Reloading on /finance would land you on /.
+  //
+  // Mounting both costs nothing visible: the splash overlay covers this window,
+  // and every query is gated on a user id so none of them fire yet.
+  const mountApp = signedIn || loading;
+  const mountAuth = !signedIn || loading;
+
   // Feed the navigation theme from the same tokens, so navigator chrome
   // (card backgrounds, transitions) matches the design system rather than
   // falling back to React Navigation's defaults.
@@ -103,7 +114,7 @@ function RootLayoutNav() {
         unauthenticated client can read no rows.
       */}
       <Stack screenOptions={{ contentStyle: { backgroundColor: colors.backgroundPrimary } }}>
-        <Stack.Protected guard={signedIn} redirectTo="/sign-in">
+        <Stack.Protected guard={mountApp} redirectTo="/sign-in">
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'About' }} />
           <Stack.Screen
@@ -114,9 +125,10 @@ function RootLayoutNav() {
             name="transaction/[id]"
             options={{ presentation: 'modal', title: 'Edit transaction' }}
           />
+          <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
         </Stack.Protected>
 
-        <Stack.Protected guard={!signedIn} redirectTo="/">
+        <Stack.Protected guard={mountAuth} redirectTo="/">
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>

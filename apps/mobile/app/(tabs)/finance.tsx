@@ -162,7 +162,18 @@ export default function FinanceScreen() {
         </Card>
 
         <Card style={styles.panel}>
-          <SectionHead title="Recent transactions" subtitle="Newest first" />
+          <SectionHead
+            title="Recent transactions"
+            subtitle="Newest first"
+            trailing={
+              <Button
+                label="View all →"
+                variant="ghost"
+                size="small"
+                onPress={() => router.push('/transactions')}
+              />
+            }
+          />
           {transactions.isPending ? (
             <LoadingState label="Loading transactions…" />
           ) : transactions.isError ? (

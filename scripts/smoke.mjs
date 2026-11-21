@@ -136,6 +136,15 @@ try {
     page.url(),
   );
 
+  // --- deep links -----------------------------------------------------------
+  // Reloading on a protected route must keep you there. While the stored
+  // session is being read the app briefly looks signed-out, and excluding the
+  // protected branch at that moment removes the route entirely — the router
+  // then falls back to the anchor and the destination is silently lost.
+  await page.goto(`${BASE}/finance`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(4000);
+  record('reloading on a protected route stays there', page.url().includes('/finance'), page.url());
+
   // --- design system -------------------------------------------------------
   // Backgrounds live on nested surfaces, not the shell root, so assert the
   // expected token colour appears somewhere in the rendered tree.
