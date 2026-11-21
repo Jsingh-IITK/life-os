@@ -4,10 +4,14 @@ import { Card, EmptyState, Grid, HeroCard, Screen, SectionHead, Text } from '@/c
 import { space } from '@/design/tokens';
 
 /**
- * Fitness has no schema yet — no plans, sessions, sets or exercises exist in
- * the database. The design board shows a populated dashboard, but filling
- * this screen with a fabricated streak and invented workout history is
- * precisely what the PRD rules out. What it shows instead is what is true.
+ * Placeholder, held deliberately. The Fitness schema, seeded programme and
+ * session start/complete RPCs exist (migrations 0013–0015) and the query
+ * hooks are in lib/queries/fitness.ts, but the dashboard UI waits for the
+ * approved visual direction. Until then this screen shows no figures rather
+ * than a fabricated streak or invented history, which the PRD rules out.
+ *
+ * The on-screen copy below still says there is no schema. It changes with
+ * the real dashboard, not before.
  */
 export default function FitnessScreen() {
   return (
