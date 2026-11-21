@@ -1,8 +1,23 @@
 # Database schema
 
-**Status:** Phase 0 has shipped domains and helpers only
-(`supabase/migrations/0001_domains_and_helpers.sql`). No tables exist yet. This
-document is the design the later phases implement.
+**Status (2026-11-21):** migrations `0001`–`0015` are applied locally; the
+hosted project has `0001`–`0014`. Sections below say which objects are
+**shipped** and which are **planned**. Where the two disagree, the migrations
+are the truth and this file is wrong.
+
+## What is shipped
+
+| Area | Tables | Views | Functions (RPC) |
+|---|---|---|---|
+| Identity | `profiles`, `user_preferences`, `module_preferences` | | |
+| Chart of accounts | `ledger_accounts`, `financial_accounts`, `categories`, `income_sources` | `account_balances` | `onboard_finance` |
+| Ledger | `transactions`, `postings`, `transaction_audit` | `month_summary` | `post_transaction`, `update_transaction`, `delete_transaction`, `restore_transaction`, `transaction_snapshot` |
+| Budgets | `budgets`, `budget_allocations` | `budget_status` | |
+| Fitness | `exercises`, `exercise_muscles`, `training_plans`, `training_plan_days`, `workout_templates`, `workout_template_exercises`, `workout_sessions`, `workout_session_exercises`, `workout_sets`, `conditioning_sessions`, `bodyweight_entries` | `set_volume`, `exercise_history`, `weekly_muscle_volume` | `seed_training_programme`, `start_workout_session`, `complete_workout_session` |
+
+Every user table has RLS, grants to `authenticated`, no `anon` access, and
+composite `(user_id, id)` foreign keys. `audit_rls()` checks all of this and
+runs in pgTAP file `001`.
 
 ## Universal rules
 
@@ -19,7 +34,7 @@ unique (user_id, id)   -- enables composite foreign keys, see "Ownership" below
 `user_id` is denormalised onto child tables so RLS predicates never require a
 join. Soft deletion (`deleted_at`) where history matters.
 
-## Phase 0 — shipped
+## Domains and helpers — shipped (`0001`)
 
 | Object | Purpose |
 |---|---|
@@ -54,12 +69,12 @@ ledger_accounts(id, user_id, account_class, parent_id, name, currency_code, is_a
 Thin 1:1 satellites hold class-specific metadata, which keeps one foreign-key
 target while letting each kind of account carry its own fields:
 
-| Table | Attaches to | Holds |
-|---|---|---|
-| `financial_accounts` | ASSET / LIABILITY | institution, last4, account type, designation |
-| `categories` | EXPENSE / INCOME | icon, colour, `is_fixed`, `budget_eligible` |
-| `asset_positions` | ASSET (investment) | asset class, ticker/folio, units |
-| `liabilities` | LIABILITY | credit limit, APR, statement day, due day |
+| Table | Attaches to | Holds | State |
+|---|---|---|---|
+| `financial_accounts` | ASSET / LIABILITY | institution, account type, designation, `is_default` | shipped |
+| `categories` | EXPENSE / INCOME | icon, `is_fixed`, `budget_eligible`, `is_lifestyle`, sort order | shipped |
+| `asset_positions` | ASSET (investment) | asset class, ticker/folio, units | planned, Phase 3 |
+| `liabilities` | LIABILITY | credit limit, APR, statement day, due day | planned |
 
 **No table stores a balance.** Balances derive from postings.
 
@@ -100,18 +115,24 @@ execute function assert_transaction_balances();
 | MF redemption ₹6,000 (basis ₹5,000) | DR `Asset:Bank` 600000 · CR `Asset:Investment:MF` 500000 · CR `Income:CapitalGains:Realized` 100000 |
 | Refund ₹300 | DR `Asset:Bank` · CR `Expense:Food` (original category) |
 
+Edits and deletes go through `update_transaction` / `delete_transaction`,
+which write a before/after row to `transaction_audit` in the same transaction.
+Deletion is soft (`deleted_at`); `restore_transaction` undoes it, and
+`account_balances` ignores deleted transactions.
+
 Unrealized gains appear in **no** posting. They exist only as
 `valuation_snapshots`, which is exactly why "gains are not income" holds.
 
 ### Budgets
 
-`budgets(user_id, period_month, scope)` → `budget_allocations(budget_id,
+Shipped. `budgets(user_id, period_month, note)`, one per user per month →
+`budget_allocations(budget_id,
 ledger_account_id, planned paise, rollover bool)` with
 `unique (budget_id, ledger_account_id)` — which is what makes "a transaction
 affects the appropriate budget exactly once" true. Planned and actual never
 share a table.
 
-### Wealth
+### Wealth — planned (Phase 3), nothing shipped
 
 ```
 asset_positions            1:1 with an ASSET account; units numeric(20,6)
@@ -136,28 +157,44 @@ savings_goals, goal_contributions
 - `liability_transactions` is a **view** over postings, not a table
   ([D5](./PRODUCT_DECISIONS.md)).
 
-## Fitness
+## Fitness — shipped (`0013`–`0015`)
 
 ```
-exercises, exercise_muscle_groups, exercise_equipment    library, user-extensible
-training_plans, training_plan_days                        recurring weekly intent
-workout_templates, workout_template_exercises             ordered; superset_group
-workout_sessions, workout_session_exercises, workout_sets actuals
-personal_records, fitness_goals, cardio_sessions, boxing_sessions
+exercises                   library; equipment, weight_basis, is_unilateral, default rest
+exercise_muscles            exercise × muscle_group × role (primary/secondary)
+training_plans              one active plan per user
+training_plan_days          weekday → label, session_kind, template_id (nullable)
+workout_templates           named templates (Push, Pull, …)
+workout_template_exercises  ordered; target_sets, rep_min/rep_max, rest; superset_group
+workout_sessions            instances: status, scheduled_for, performed_on, started/ended_at
+workout_session_exercises   snapshot: name, target_sets, rep_min/rep_max, rest
+workout_sets                weight_grams, reps, rir, is_warmup, side, assistance_grams
+conditioning_sessions       boxing / cardio: activity, duration, distance, intensity
+bodyweight_entries          one per day, grams
 ```
 
-- `workout_session_exercises` **snapshots** target sets/reps/weight/rest at
-  session start, so editing a template never rewrites a saved session
-  ([D7](./PRODUCT_DECISIONS.md)).
-- `training_plan_days` is intent; `workout_sessions` are instances with `status`
-  (planned / completed / skipped / rescheduled) and `scheduled_for` vs
-  `performed_on`. Skipping writes to the session, never mutating the plan.
-- `personal_records` is a rebuildable cache; `fitness-core` derives PRs from
-  `workout_sets` deterministically.
-- Estimated 1RM is computed, never stored as fact, and carries the formula used
-  so the UI can label it an estimate.
+- `session_kind`: `gym | striking | optional | recovery`.
+- `session_status`: `planned | in_progress | completed | skipped`. There is no
+  `missed` state yet, so a planned session nobody did cannot be told apart
+  from one still to come. Proposal pending.
+- `workout_session_exercises` **snapshots** the template at session start
+  (name, target sets, rep range, rest), so editing a template never rewrites a
+  saved session ([D7](./PRODUCT_DECISIONS.md)). Target *weight* is not part of
+  the snapshot: templates do not prescribe weights.
+- `start_workout_session(template, date)` does the snapshot in one transaction
+  and returns the existing session if one exists for that template and date
+  (`unique (user_id, template_id, performed_on)`).
+- `complete_workout_session(id)` refuses a session with no working sets
+  (non-warm-up, reps > 0).
+- Views: `set_volume` (per set, grams), `exercise_history`,
+  `weekly_muscle_volume`. Warm-ups are excluded from volume.
 
-## AI
+**Planned, not shipped:** `personal_records` (a rebuildable cache;
+`fitness-core` derives PRs from `workout_sets` deterministically),
+`fitness_goals`, a `rescheduled` status. Estimated 1RM will be computed,
+never stored as fact, and labelled with its formula.
+
+## AI — planned (Phase 4), nothing shipped
 
 `chat_sessions`, `chat_messages`, `ai_action_logs` (every proposed and executed
 tool call, with module scope).
@@ -206,10 +243,16 @@ parent/child pair in both modules.
 
 ### Other controls
 
-- Edge Functions build their Supabase client from the **caller's JWT**, never
+- (Planned; no Edge Functions exist yet.) Edge Functions build their Supabase client from the **caller's JWT**, never
   the service role, so RLS applies as defence in depth. Service role is reserved
   for migrations and seeding.
 - Never trust a client-supplied `user_id`; re-derive it from the verified JWT.
 - `SECURITY DEFINER` functions pin `set search_path = ''`.
+- A `SECURITY INVOKER` function in `public` must not call into `app_private`:
+  `authenticated` has no `USAGE` on that schema, so the call fails for every
+  real user while tests run as a privileged role still pass.
+- RLS is not a grant. Every table also needs `GRANT`s to `authenticated`,
+  which the local stack adds by default and the hosted project does not
+  (`0007_grants.sql`, `0008_revoke_anon.sql`).
 - Seed configuration is applied per account by an onboarding routine — never
   table defaults or migration literals.
