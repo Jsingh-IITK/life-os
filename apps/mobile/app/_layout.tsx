@@ -126,6 +126,7 @@ function RootLayoutNav() {
             options={{ presentation: 'modal', title: 'Edit transaction' }}
           />
           <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
+          <Stack.Screen name="budget" options={{ title: 'Budget' }} />
         </Stack.Protected>
 
         <Stack.Protected guard={mountAuth} redirectTo="/">

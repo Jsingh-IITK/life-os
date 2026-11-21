@@ -140,6 +140,7 @@ export default function FinanceScreen() {
       </Grid>
 
       <View style={styles.toolbar}>
+        <Button label="Budget" variant="secondary" onPress={() => router.push('/budget')} />
         <Button label="＋ Add transaction" onPress={() => router.push('/transaction/new')} />
       </View>
 
@@ -247,5 +248,5 @@ const styles = StyleSheet.create({
   setup: { gap: space[3], alignItems: 'flex-start', maxWidth: 560 },
   setupBody: { maxWidth: 520 },
   empty: { paddingVertical: space[5] },
-  toolbar: { flexDirection: 'row', justifyContent: 'flex-end' },
+  toolbar: { flexDirection: 'row', justifyContent: 'flex-end', gap: space[3] },
 });
