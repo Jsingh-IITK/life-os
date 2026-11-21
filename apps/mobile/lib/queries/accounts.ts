@@ -1,7 +1,7 @@
-import { Money } from '@life-os/finance-core';
+import { Money, Postings } from '@life-os/finance-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { queryKeys } from '@/lib/queries/keys';
+import { ledgerCaches, queryKeys } from '@/lib/queries/keys';
 import { useUserId } from '@/lib/auth/session';
 import { supabase } from '@/lib/supabase';
 
@@ -125,6 +125,159 @@ export function useOnboard() {
       // from them.
       void client.invalidateQueries({ queryKey: queryKeys.accounts(userId) });
       void client.invalidateQueries({ queryKey: queryKeys.balances(userId) });
+    },
+  });
+}
+
+export interface NewAccountInput {
+  name: string;
+  accountClass: AccountClass;
+  /** Only for ASSET/LIABILITY — the satellite row type. */
+  accountType?: 'bank' | 'cash' | 'credit_card' | 'wallet' | 'other';
+  designation?: 'general' | 'emergency_fund' | 'travel_fund' | 'goal' | 'other';
+}
+
+/** Creates an account and its metadata row. */
+export function useCreateAccount() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async (input: NewAccountInput) => {
+      if (!userId) throw new Error('not signed in');
+
+      const { data, error } = await supabase
+        .from('ledger_accounts')
+        .insert({ user_id: userId, account_class: input.accountClass, name: input.name.trim() })
+        .select('id')
+        .single();
+      if (error) throw new Error(error.message);
+
+      const id = data.id as string;
+
+      if (input.accountClass === 'ASSET' || input.accountClass === 'LIABILITY') {
+        const { error: satelliteError } = await supabase.from('financial_accounts').insert({
+          ledger_account_id: id,
+          user_id: userId,
+          account_type:
+            input.accountType ?? (input.accountClass === 'LIABILITY' ? 'credit_card' : 'bank'),
+          designation: input.designation ?? 'general',
+        });
+        if (satelliteError) throw new Error(satelliteError.message);
+      } else if (input.accountClass === 'EXPENSE' || input.accountClass === 'INCOME') {
+        const { error: satelliteError } = await supabase
+          .from('categories')
+          .insert({ ledger_account_id: id, user_id: userId });
+        if (satelliteError) throw new Error(satelliteError.message);
+      }
+
+      return id;
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      for (const key of ledgerCaches(userId)) void client.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+export function useRenameAccount() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { error } = await supabase
+        .from('ledger_accounts')
+        .update({ name: name.trim() })
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      for (const key of ledgerCaches(userId)) void client.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/**
+ * Archives rather than deletes.
+ *
+ * An account with postings cannot be deleted — the foreign key refuses it,
+ * correctly, because removing it would silently change historical balances.
+ * Archiving hides it from pickers while leaving history intact.
+ */
+export function useArchiveAccount() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
+      const { error } = await supabase
+        .from('ledger_accounts')
+        .update({ is_archived: archived })
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      for (const key of ledgerCaches(userId)) void client.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/**
+ * Records a starting balance.
+ *
+ * Posted against opening-balance equity, which is what lets a balance exist
+ * from before you started tracking without inventing income to explain it.
+ * A liability takes a negative amount: you owe it.
+ */
+export function useSetOpeningBalance() {
+  const client = useQueryClient();
+  const userId = useUserId();
+
+  return useMutation({
+    mutationFn: async ({
+      accountId,
+      amount,
+      date,
+    }: {
+      accountId: string;
+      amount: Money.Paise;
+      date: string;
+    }) => {
+      if (!userId) throw new Error('not signed in');
+
+      const { data: equity, error: equityError } = await supabase
+        .from('ledger_accounts')
+        .select('id')
+        .eq('account_class', 'EQUITY')
+        .limit(1)
+        .single();
+      if (equityError) throw new Error(`No opening-balance account found: ${equityError.message}`);
+
+      const legs = Postings.buildPostings({
+        type: 'opening_balance',
+        amount,
+        accountId,
+        equityAccountId: equity.id as string,
+      });
+
+      const { error } = await supabase.rpc('post_transaction', {
+        payload: {
+          txn_date: date,
+          type: 'opening_balance',
+          description: 'Opening balance',
+          postings: Postings.toRpcPostings(legs),
+        },
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      if (!userId) return;
+      for (const key of ledgerCaches(userId)) void client.invalidateQueries({ queryKey: key });
     },
   });
 }

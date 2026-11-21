@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { Badge, Button, Card, Screen, Text } from '@/components/ui';
 import { useTheme, type ThemeMode } from '@/design/theme';
 import { radius, space } from '@/design/tokens';
+import { useRouter } from 'expo-router';
+
 import { useSession } from '@/lib/auth/session';
 import { supabase } from '@/lib/supabase';
 
@@ -13,6 +15,7 @@ const MODES: { value: ThemeMode; label: string; hint: string }[] = [
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { session } = useSession();
   const { mode, scheme, setMode, colors } = useTheme();
 
@@ -81,10 +84,25 @@ export default function SettingsScreen() {
       </Card>
 
       <Card style={styles.section}>
+        <Text variant="cardHeading">Accounts & categories</Text>
+        <Text variant="secondary" color="textSecondary">
+          Add, rename or archive your accounts, cards and spending categories,
+          and set opening balances.
+        </Text>
+        <Button
+          label="Manage"
+          variant="secondary"
+          size="small"
+          onPress={() => router.push('/accounts')}
+          style={styles.signOut}
+        />
+      </Card>
+
+      <Card style={styles.section}>
         <Text variant="cardHeading">Preferences</Text>
         <Text variant="secondary" color="textSecondary">
-          Currency, timezone and per-module settings are stored against your
-          account. Editing them arrives with onboarding.
+          Currency and timezone are stored against your account. Editing them
+          from here arrives next.
         </Text>
       </Card>
     </Screen>

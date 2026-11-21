@@ -28,12 +28,13 @@ export interface TransactionFormProps {
   onDone: () => void;
 }
 
-type EntryType = 'expense' | 'income' | 'transfer';
+type EntryType = 'expense' | 'income' | 'transfer' | 'card_payment';
 
 const TYPES: readonly Option<EntryType>[] = [
   { value: 'expense', label: 'Expense', hint: 'Money out' },
   { value: 'income', label: 'Income', hint: 'Money in' },
   { value: 'transfer', label: 'Transfer', hint: 'Between accounts' },
+  { value: 'card_payment', label: 'Card payment', hint: 'Settles a card' },
 ];
 
 const PAYMENT_METHODS: readonly Option<string>[] = [
@@ -112,12 +113,16 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
     label: a.name,
   }));
   const accountOptions: Option<string>[] = payFrom.map((a) => ({ value: a.id, label: a.name }));
+  const assetOptions: Option<string>[] = assets.map((a) => ({ value: a.id, label: a.name }));
+  const cardOptions: Option<string>[] = liabilities.map((a) => ({ value: a.id, label: a.name }));
 
-  const needsCategory = type !== 'transfer';
+  const needsCategory = type === 'expense' || type === 'income';
   const ready =
     parsed.ok &&
     date.length === 10 &&
-    (needsCategory ? categoryId !== null && accountId !== null : accountId !== null && toAccountId !== null);
+    (needsCategory
+      ? categoryId !== null && accountId !== null
+      : accountId !== null && toAccountId !== null);
 
   async function submit() {
     if (!ready || !parsed.ok) return;
@@ -151,6 +156,16 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
           amount,
           incomeAccountId: categoryId!,
           depositedToAccountId: accountId!,
+        };
+      } else if (type === 'card_payment') {
+        // Settles the liability from an asset account. No expense leg exists,
+        // which is why paying a card cannot double-count the purchases that
+        // created the balance — those were already recorded when made.
+        input = {
+          type: 'cc_repayment',
+          amount,
+          cardAccountId: toAccountId!,
+          paidFromAccountId: accountId!,
         };
       } else {
         input = { type: 'transfer', amount, fromAccountId: accountId!, toAccountId: toAccountId! };
@@ -230,8 +245,17 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
         ) : null}
 
         <Select
-          label={type === 'income' ? 'Deposited to' : type === 'transfer' ? 'From' : 'Paid from'}
-          options={accountOptions}
+          label={
+            type === 'income'
+              ? 'Deposited to'
+              : type === 'transfer'
+                ? 'From'
+                : type === 'card_payment'
+                  ? 'Paid from'
+                  : 'Paid from'
+          }
+          // A card cannot pay itself off, so card payments draw from assets only.
+          options={type === 'card_payment' ? assetOptions : accountOptions}
           value={accountId ?? ''}
           onChange={setAccountId}
         />
@@ -245,6 +269,15 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
           />
         ) : null}
 
+        {type === 'card_payment' ? (
+          <Select
+            label="Card being paid"
+            options={cardOptions}
+            value={toAccountId ?? ''}
+            onChange={setToAccountId}
+          />
+        ) : null}
+
         <Input
           label="Merchant or note"
           placeholder="Optional"
@@ -252,7 +285,7 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
           onChangeText={setMerchant}
         />
 
-        {type !== 'transfer' ? (
+        {needsCategory ? (
           <Select
             label="Payment method"
             options={PAYMENT_METHODS}
@@ -265,6 +298,14 @@ export function TransactionForm({ existingId, initial, onDone }: TransactionForm
           <Text variant="caption" color="textMuted">
             A transfer moves money between your own accounts. It is not spending
             and will not appear in any category total.
+          </Text>
+        ) : null}
+
+        {type === 'card_payment' ? (
+          <Text variant="caption" color="textMuted">
+            Paying a card settles what you owe. It is not spending — the
+            purchases were counted when you made them, so counting the payment
+            too would record the same money twice.
           </Text>
         ) : null}
 
