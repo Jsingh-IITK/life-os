@@ -74,6 +74,23 @@ pnpm mobile:android     # run on Android
 - Weights/measures and money both have database domains; prefer them over raw
   `bigint` so the constraint travels with the column.
 
+## Checking the UI
+
+Two ways to look at the running app, and they are not interchangeable:
+
+- **`pnpm smoke`** — 26 scripted browser assertions covering routing, auth,
+  themes and responsive behaviour. This is the regression net; it runs the
+  same way every time and belongs in CI.
+- **Playwright MCP** (`.mcp.json`, pinned) — navigate and screenshot
+  interactively, without writing a script first. For *looking* at something
+  once: is this spacing right, did that render, why is the figure wrong.
+
+Use MCP to investigate, then encode whatever it finds as a smoke assertion.
+A bug found by looking is a bug that returns silently unless a test now
+holds it down. Every UI bug so far — the collapsed layout, income rendering
+as a negative in green, a count disagreeing with the rows beneath it — was
+found by looking at a screenshot, not by a test failing.
+
 ## Working agreement
 
 - Small increments. Explain intended changes, implement, run tests, report what
