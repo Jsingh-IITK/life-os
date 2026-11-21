@@ -8,40 +8,54 @@ Built for one person today, architected for many from day one.
 > Product source of truth: [`docs/PRD.md`](./docs/PRD.md).
 > Decisions and their reasons: [`docs/PRODUCT_DECISIONS.md`](./docs/PRODUCT_DECISIONS.md).
 
-## Status — Phase 0
+## Status — Finance core done, Fitness in progress
 
-Rails only. The shell renders, the engines are real and tested, and the
-database has its primitives. There is no persistence yet.
+Phases 0–2 are delivered, and Phase 5 (Fitness) has its schema and session
+lifecycle. Last updated 2026-11-21.
 
-| Delivered | |
+| Area | State |
 |---|---|
-| pnpm monorepo, TypeScript strict | ✅ |
-| Expo Router shell — 5 tabs, web + Android from one tree | ✅ |
-| `finance-core` money engine — integer paise | ✅ 71 tests |
-| `fitness-core` measures engine — integer grams/seconds/metres | ✅ 25 tests |
-| Module boundary enforcement in CI | ✅ with verification probes |
-| Migration `0001` — money and measure domains | ✅ |
-| CI — lint, typecheck, test, web bundle | ✅ |
+| Shell — Expo Router, 5 tabs, web + Android, light/dark | ✅ |
+| Auth — sign-up, sign-in, password reset | ✅ |
+| Double-entry ledger — record, edit, delete, restore, audited | ✅ |
+| Accounts, categories, card payments, paginated history | ✅ |
+| Monthly budgets, planned vs actual | ✅ |
+| Home with real month figures | ✅ |
+| RLS + grants + composite FKs on every user table, `audit_rls()` | ✅ |
+| Fitness schema, analytics views, seeded programme | ✅ database only |
+| Workout session start/complete (`0015`) | ✅ database + query hooks; no UI yet |
+| Fitness UI, PRs / progression / consistency | ⏳ |
+| Finance wealth — lots, valuations, net worth (Phase 3) | ⏳ not started |
+| Conversational assistant (Phase 4) | ⏳ tab exists, no backend |
 
-Not yet: auth, tables, RLS, transactions, budgets, wealth, workouts, AI.
+Tests: `finance-core` 119, `fitness-core` 25, pgTAP 121 across 9 files,
+26 browser smoke assertions.
+
 See the phase table in [`docs/TECHNICAL_ARCHITECTURE.md`](./docs/TECHNICAL_ARCHITECTURE.md).
 
 ## Quick start
 
 ```bash
 pnpm install
-pnpm -r test        # 96 invariant tests
+pnpm -r test        # engine invariant tests
 pnpm -r typecheck
 pnpm lint           # includes module boundary rules
 pnpm mobile:web     # run in a browser
 pnpm mobile:android # run on a device or emulator
+pnpm smoke          # scripted browser assertions
 ```
 
-Supabase is not yet linked — that needs your project credentials. Once linked:
+The app reads `EXPO_PUBLIC_SUPABASE_URL` and the anon key from
+`apps/mobile/.env` (template: `.env.example`).
+
+Database work runs against a local Supabase stack, which needs a container
+runtime (Docker Desktop, OrbStack or colima):
 
 ```bash
-pnpm db:push        # apply migrations
-pnpm db:test        # pgTAP (from Phase 1)
+npx supabase db start         # Postgres only; enough for tests
+npx supabase db reset --local # apply every migration from scratch
+pnpm db:test                  # pgTAP
+pnpm db:push                  # apply migrations to the linked hosted project
 ```
 
 ## The two rules that shape everything
@@ -71,8 +85,8 @@ and nothing that can fall out of agreement with the records.
 
 ```
 apps/mobile            Expo Router app — Android (priority) + Web
-packages/finance-core  double-entry engine, budgets, lots, valuation, net worth
-packages/fitness-core  volume, progression, personal records, consistency
+packages/finance-core  money, posting builders, budget status (lots, valuation, net worth planned)
+packages/fitness-core  measures and volume (PRs, progression, consistency planned)
 supabase/migrations    ordered schema changes
 supabase/tests         pgTAP — RLS and cross-user isolation
 docs/                  PRD, architecture, schema, decisions
