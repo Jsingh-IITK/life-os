@@ -23,7 +23,7 @@ lifecycle. Last updated 2026-11-21.
 | Home with real month figures | ✅ |
 | RLS + grants + composite FKs on every user table, `audit_rls()` | ✅ |
 | Fitness schema, analytics views, seeded programme | ✅ database only |
-| Workout session start/complete (`0015`), plan versions and skips (`0016`) | ✅ database; hosted has up to `0014` |
+| Workout session start/complete (`0015`), plan versions and skips (`0016`) | ✅ database, local and hosted |
 | PRs, progression, consistency (missed is derived) | ✅ `fitness-core`, not yet wired to UI |
 | Fitness UI | ⏳ paused, core features first |
 | Finance wealth — lots, valuations, net worth (Phase 3) | ⏳ not started |
@@ -57,7 +57,7 @@ runtime (Docker Desktop, OrbStack or colima):
 npx supabase db start         # Postgres only; enough for tests
 npx supabase db reset --local # apply every migration from scratch
 pnpm db:test                  # pgTAP
-pnpm db:push                  # apply migrations to the linked hosted project
+pnpm db:push                  # apply migrations to the hosted project (--remote)
 ```
 
 ## The two rules that shape everything

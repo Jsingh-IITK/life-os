@@ -1,7 +1,7 @@
 # Database schema
 
-**Status (2026-11-27):** migrations `0001`–`0016` are applied locally; the
-hosted project has `0001`–`0014`. Sections below say which objects are
+**Status (2026-11-27):** migrations `0001`–`0016` are applied locally and on
+the hosted project. Sections below say which objects are
 **shipped** and which are **planned**. Where the two disagree, the migrations
 are the truth and this file is wrong.
 

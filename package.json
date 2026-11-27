@@ -14,7 +14,7 @@
     "mobile": "pnpm --filter @life-os/mobile start",
     "mobile:web": "pnpm --filter @life-os/mobile web",
     "mobile:android": "pnpm --filter @life-os/mobile android",
-    "db:push": "supabase db push",
+    "db:push": "supabase db push --remote",
     "db:test": "supabase test db",
     "smoke": "node scripts/smoke.mjs",
     "check:plans": "node scripts/check-plans.mjs"
