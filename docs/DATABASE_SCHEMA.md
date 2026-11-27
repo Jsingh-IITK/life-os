@@ -1,6 +1,6 @@
 # Database schema
 
-**Status (2026-11-21):** migrations `0001`–`0015` are applied locally; the
+**Status (2026-11-27):** migrations `0001`–`0016` are applied locally; the
 hosted project has `0001`–`0014`. Sections below say which objects are
 **shipped** and which are **planned**. Where the two disagree, the migrations
 are the truth and this file is wrong.
@@ -13,7 +13,7 @@ are the truth and this file is wrong.
 | Chart of accounts | `ledger_accounts`, `financial_accounts`, `categories`, `income_sources` | `account_balances` | `onboard_finance` |
 | Ledger | `transactions`, `postings`, `transaction_audit` | `month_summary` | `post_transaction`, `update_transaction`, `delete_transaction`, `restore_transaction`, `transaction_snapshot` |
 | Budgets | `budgets`, `budget_allocations` | `budget_status` | |
-| Fitness | `exercises`, `exercise_muscles`, `training_plans`, `training_plan_days`, `workout_templates`, `workout_template_exercises`, `workout_sessions`, `workout_session_exercises`, `workout_sets`, `conditioning_sessions`, `bodyweight_entries` | `set_volume`, `exercise_history`, `weekly_muscle_volume` | `seed_training_programme`, `start_workout_session`, `complete_workout_session` |
+| Fitness | `exercises`, `exercise_muscles`, `training_plans`, `training_plan_days`, `workout_templates`, `workout_template_exercises`, `workout_sessions`, `workout_session_exercises`, `workout_sets`, `conditioning_sessions`, `bodyweight_entries` | `set_volume`, `exercise_history`, `weekly_muscle_volume` | `seed_training_programme`, `start_workout_session`, `complete_workout_session`, `set_plan_day`, `skip_training_day`, `unskip_training_day`, `user_today` |
 
 Every user table has RLS, grants to `authenticated`, no `anon` access, and
 composite `(user_id, id)` foreign keys. `audit_rls()` checks all of this and
@@ -157,7 +157,7 @@ savings_goals, goal_contributions
 - `liability_transactions` is a **view** over postings, not a table
   ([D5](./PRODUCT_DECISIONS.md)).
 
-## Fitness — shipped (`0013`–`0015`)
+## Fitness — shipped (`0013`–`0016`)
 
 ```
 exercises                   library; equipment, weight_basis, is_unilateral, default rest
@@ -174,9 +174,22 @@ bodyweight_entries          one per day, grams
 ```
 
 - `session_kind`: `gym | striking | optional | recovery`.
-- `session_status`: `planned | in_progress | completed | skipped`. There is no
-  `missed` state yet, so a planned session nobody did cannot be told apart
-  from one still to come. Proposal pending.
+- `session_status`: `planned | in_progress | completed | skipped`. There is
+  deliberately **no `missed` status**: missed is derived by `fitness-core`
+  (`Consistency.classifyDay`) from the plan, sessions and conditioning, so it
+  needs no scheduler and cannot go stale.
+- **Plan versions** (`0016`): `training_plans.effective_from` / `effective_to`
+  (exclusive). An exclusion constraint forbids overlapping versions, and a
+  trigger refuses edits to the days of a version that has started.
+  `set_plan_day` changes the plan from today forward by closing the current
+  version and starting a new one, so past days keep the plan they were
+  judged against. `is_active` is kept and constrained to equal
+  `effective_to is null`.
+- **Skips** (`0016`): `skip_training_day(date, reason)` writes a `skipped`
+  session against the plan that applied that day; refused on rest and
+  optional days and once training is logged. `unskip_training_day` removes
+  only skips. Starting a workout on a skipped day turns the skip into the
+  session. Untemplated (striking) days have their own one-per-day index.
 - `workout_session_exercises` **snapshots** the template at session start
   (name, target sets, rep range, rest), so editing a template never rewrites a
   saved session ([D7](./PRODUCT_DECISIONS.md)). Target *weight* is not part of
@@ -191,7 +204,7 @@ bodyweight_entries          one per day, grams
 
 **Planned, not shipped:** `personal_records` (a rebuildable cache;
 `fitness-core` derives PRs from `workout_sets` deterministically),
-`fitness_goals`, a `rescheduled` status. Estimated 1RM will be computed,
+`fitness_goals`. Estimated 1RM will be computed,
 never stored as fact, and labelled with its formula.
 
 ## AI — planned (Phase 4), nothing shipped

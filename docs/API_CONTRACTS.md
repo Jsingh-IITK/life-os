@@ -1,6 +1,6 @@
 # API contracts
 
-**Status (2026-11-21):** the database RPCs below are shipped. The app calls
+**Status (2026-11-27):** the database RPCs below are shipped. The app calls
 them through `supabase.rpc()` from `apps/mobile/lib/queries/`. Edge Functions
 and AI tools are **planned** (Phase 4); none exist yet.
 
@@ -55,7 +55,11 @@ Clients build legs with `finance-core` (`Postings` builders →
 | Function | Returns | Notes |
 |---|---|---|
 | `seed_training_programme()` | `jsonb` `{exercises, templates, plan_days}` | Creates the caller's exercise library, templates and active weekly plan. |
-| `start_workout_session(p_template_id uuid, p_performed_on date)` | `uuid` | Creates an `in_progress` session and snapshots the template's exercises in one transaction. Idempotent per template per date: re-calling returns the existing session. Raises `P0002` if the template is not the caller's. |
+| `start_workout_session(p_template_id uuid, p_performed_on date)` | `uuid` | Creates an `in_progress` session and snapshots the template's exercises in one transaction. Idempotent per template per date: re-calling returns the existing session. On a skipped day it turns the skip into an in-progress session (`0016`). Raises `P0002` if the template is not the caller's. |
+| `set_plan_day(p_weekday smallint, p_kind session_kind, p_label text, p_template_id uuid default null, p_from date default today)` | `uuid` (plan version) | Changes one weekday from `p_from` forward. Refuses past dates (`23514`). If the current version already started, closes it and starts a new one. Gym days require a template; other kinds must not have one. |
+| `skip_training_day(p_date date, p_reason text default null)` | `uuid` | Records a deliberate skip against the plan that applied on `p_date`. Idempotent. `23514` on rest/optional days or once training is logged; `P0002` if nothing was planned. |
+| `unskip_training_day(p_date date)` | `integer` (rows removed) | Removes skips only; never a started or completed session. |
+| `user_today()` | `date` | Today in the caller's `user_preferences.timezone`. |
 | `complete_workout_session(p_session_id uuid)` | `void` | Marks an `in_progress` session `completed`. Raises `23514` if it has no working sets (non-warm-up, reps > 0) or is not in progress; `P0002` if not the caller's. |
 
 Sets are logged and removed with plain inserts and deletes on `workout_sets`
@@ -72,6 +76,7 @@ connection mid-workout.
 | `P0002` `no_data_found` | Target row missing or not the caller's (RLS makes the two indistinguishable, on purpose). |
 | `23514` `check_violation` | A business rule refused the write (unbalanced legs, invalid state transition, nothing logged). |
 | `23505` `unique_violation` | Duplicate (idempotency key, set index, one budget per month). |
+| `23P01` `exclusion_violation` | Two plan versions would cover the same day. |
 | `23502` `not_null_violation` | A required argument was null (e.g. a session with no date). |
 
 ## Edge Functions — planned (Phase 4)

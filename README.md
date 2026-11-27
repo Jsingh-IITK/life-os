@@ -23,13 +23,15 @@ lifecycle. Last updated 2026-11-21.
 | Home with real month figures | ✅ |
 | RLS + grants + composite FKs on every user table, `audit_rls()` | ✅ |
 | Fitness schema, analytics views, seeded programme | ✅ database only |
-| Workout session start/complete (`0015`) | ✅ database + query hooks; no UI yet |
-| Fitness UI, PRs / progression / consistency | ⏳ |
+| Workout session start/complete (`0015`), plan versions and skips (`0016`) | ✅ database; hosted has up to `0014` |
+| PRs, progression, consistency (missed is derived) | ✅ `fitness-core`, not yet wired to UI |
+| Fitness UI | ⏳ paused, core features first |
 | Finance wealth — lots, valuations, net worth (Phase 3) | ⏳ not started |
 | Conversational assistant (Phase 4) | ⏳ tab exists, no backend |
 
-Tests: `finance-core` 119, `fitness-core` 25, pgTAP 121 across 9 files,
-26 browser smoke assertions.
+Tests: `finance-core` 119, `fitness-core` 89, pgTAP 152 across 10 files,
+26 browser smoke assertions (sign-in currently fails against the hosted
+project: its QA account does not exist there).
 
 See the phase table in [`docs/TECHNICAL_ARCHITECTURE.md`](./docs/TECHNICAL_ARCHITECTURE.md).
 
@@ -86,7 +88,7 @@ and nothing that can fall out of agreement with the records.
 ```
 apps/mobile            Expo Router app — Android (priority) + Web
 packages/finance-core  money, posting builders, budget status (lots, valuation, net worth planned)
-packages/fitness-core  measures and volume (PRs, progression, consistency planned)
+packages/fitness-core  measures, volume, personal records, progression, consistency
 supabase/migrations    ordered schema changes
 supabase/tests         pgTAP — RLS and cross-user isolation
 docs/                  PRD, architecture, schema, decisions

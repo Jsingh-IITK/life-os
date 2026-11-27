@@ -28,16 +28,16 @@ apps/mobile/
   lib/queries/            TanStack Query hooks per domain — no arithmetic
 packages/
   finance-core/           money (paise), posting builders, budget status
-  fitness-core/           measures (grams/seconds/metres), volume
+  fitness-core/           measures, volume, records (PRs), progression, consistency
 supabase/
-  migrations/             0001–0015
-  tests/                  pgTAP, 001–009
+  migrations/             0001–0016
+  tests/                  pgTAP, 001–010
 scripts/                  smoke.mjs, check-plans.mjs, ci.sh
 docs/
 ```
 
 Planned, not yet created: `finance-core` lots, valuation and net worth
-(Phase 3); `fitness-core` PRs, progression and consistency (Phase 5);
+(Phase 3);
 `supabase/functions/` and an AI package for the assistant (Phase 4). Earlier
 drafts of this document listed `ai-core`, `shared-types`, `shared-validation`
 and `ui` packages; none were created, and UI primitives live in
@@ -125,5 +125,5 @@ justifies them.
 | 2 | Finance core — accounts, all transaction types, history, budgets, dashboard | ✅ |
 | 3 | Finance wealth — five asset classes, FIFO lots, valuations, emergency fund, net worth, XIRR | ⏳ not started |
 | 4 | Finance conversational AI — provider selection gate, finance tools | ⏳ not started |
-| 5 | Fitness MVP — library, plans, templates, diary, fitness tools | 🟡 schema, views, seeded programme, session start/complete; no UI |
+| 5 | Fitness MVP — library, plans, templates, diary, fitness tools | 🟡 schema, plan versions, skips, session lifecycle; PRs, progression, consistency in `fitness-core`; no UI |
 | 6 | Advanced analytics, cross-module dashboard; Habits/Journal only once stable | ⏳ |
