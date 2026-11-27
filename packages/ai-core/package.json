@@ -1,0 +1,23 @@
+{
+  "name": "@life-os/ai-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Assistant core: module routing, typed proposals, deterministic stub and validation of untrusted model output. No I/O, no provider SDK.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@life-os/finance-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  }
+}

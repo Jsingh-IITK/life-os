@@ -87,6 +87,34 @@ export default tseslint.config(
     },
   },
 
+  // --- ai-core: pure, no provider SDK, one module per folder ----------------
+  // Models only propose; this package validates. It may call the module
+  // engines for parsing, but the finance assistant must be incapable of
+  // reaching fitness code (and, when fitness tools arrive, the reverse).
+  {
+    files: ['packages/ai-core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: PURE_ENGINE_PATHS,
+          patterns: [
+            ...PURE_ENGINE_PATTERNS,
+            {
+              group: ['openai', '@anthropic-ai/*', '@google/generative-ai', '@google/genai'],
+              message:
+                'ai-core is provider-independent. Provider calls live in the Edge Function, with credentials in its secrets.',
+            },
+            noCrossModule(
+              'fitness-core',
+              'The finance assistant must not reach fitness code. Fitness tools get their own folder and rule.',
+            ),
+          ],
+        },
+      ],
+    },
+  },
+
   // --- The app: presentation only ------------------------------------------
   {
     files: ['apps/**/*.{ts,tsx}'],
