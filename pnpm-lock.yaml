@@ -205,6 +205,9 @@ importers:
       '@expo-google-fonts/inter':
         specifier: ^0.4.2
         version: 0.4.2
+      '@life-os/ai-core':
+        specifier: workspace:*
+        version: link:../../packages/ai-core
       '@life-os/finance-core':
         specifier: workspace:*
         version: link:../../packages/finance-core

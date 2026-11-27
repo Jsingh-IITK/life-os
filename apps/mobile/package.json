@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
+    "@life-os/ai-core": "workspace:*",
     "@life-os/finance-core": "workspace:*",
     "@life-os/fitness-core": "workspace:*",
     "@react-native-async-storage/async-storage": "^3.1.1",
