@@ -27,7 +27,7 @@ lifecycle. Last updated 2026-11-21.
 | PRs, progression, consistency (missed is derived) | ✅ `fitness-core`, not yet wired to UI |
 | Fitness UI | ⏳ paused, core features first |
 | Finance wealth — lots, valuations, net worth (Phase 3) | ⏳ not started |
-| Conversational assistant (Phase 4) | ⏳ tab exists, no backend |
+| Assistant: expense drafts from English/Hinglish (Phase 4) | ✅ stub engine live; Gemini wired, off until billing is confirmed |
 
 Tests: `finance-core` 119, `fitness-core` 89, pgTAP 152 across 10 files,
 26 browser smoke assertions (sign-in currently fails against the hosted

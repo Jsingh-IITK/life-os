@@ -2,7 +2,8 @@
 
 **Status (2026-11-27):** the database RPCs below are shipped. The app calls
 them through `supabase.rpc()` from `apps/mobile/lib/queries/`. Edge Functions
-and AI tools are **planned** (Phase 4); none exist yet.
+and AI tools: the `assistant` Edge Function and finance expense drafts are
+**shipped** (2026-11-27); the other tools below are planned.
 
 Plain reads (accounts, balances, history, budgets, plan, sessions) go through
 PostgREST table and view selects under RLS, not RPCs. RPCs exist only where a
@@ -50,6 +51,14 @@ ignored.
 Clients build legs with `finance-core` (`Postings` builders →
 `toRpcPostings`), never by hand.
 
+### Assistant
+
+| Function | Returns | Notes |
+|---|---|---|
+| `confirm_ai_draft(p_log_id uuid, p_transaction jsonb)` | `uuid` (transaction) | Posts a confirmed draft through `post_transaction` with idempotency key `ai:<log id>` and marks the log confirmed, atomically. `23514` if already decided or not a finance draft; `P0002` if not the caller's. |
+
+`ai_action_logs` rows are inserted by the app under RLS (outcome `proposed` or `invalid`) and may only move from `proposed` to `confirmed` or `dismissed`; proposals are immutable (trigger).
+
 ### Fitness
 
 | Function | Returns | Notes |
@@ -79,14 +88,14 @@ connection mid-workout.
 | `23P01` `exclusion_violation` | Two plan versions would cover the same day. |
 | `23502` `not_null_violation` | A required argument was null (e.g. a session with no date). |
 
-## Edge Functions — planned (Phase 4)
+## Edge Functions
 
-| Function | Notes |
-|---|---|
-| `ai-extract` | Natural language → structured draft. Returns a proposal; never writes. |
-| `ai-chat` | Grounded Q&A over the caller's own data. |
+| Function | State | Notes |
+|---|---|---|
+| `assistant` | shipped | `POST {text}` (1–1000 chars) with the caller's JWT. Returns `{route, engine}`: `engine: null` when the message is not finance, `"stub"` when no provider is enabled (the app then runs ai-core's stub), or `"gemini"` with `{model, proposal}` / `{error}`. Never writes. Sends the model only the message and the user's category names. Secrets: `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`. |
+| `ai-chat` | planned | Grounded Q&A over the caller's own data. |
 
-Both will build their Supabase client from the caller's JWT, never the service
+Functions build their Supabase client from the caller's JWT, never the service
 role. Provider credentials live only in Edge Function secrets.
 
 ## AI tool families — planned (Phase 4)

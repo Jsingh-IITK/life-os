@@ -29,6 +29,7 @@ apps/mobile/
 packages/
   finance-core/           money (paise), posting builders, budget status
   fitness-core/           measures, volume, records (PRs), progression, consistency
+  ai-core/                routing, proposal schemas, stub, validation, Gemini adapter
 supabase/
   migrations/             0001–0016
   tests/                  pgTAP, 001–010
@@ -124,6 +125,6 @@ justifies them.
 | 1 | Auth, profiles, preferences, chart of accounts, transactions + postings, **RLS + pgTAP**, design system, AI interface + stub | ✅ except the AI interface/stub |
 | 2 | Finance core — accounts, all transaction types, history, budgets, dashboard | ✅ |
 | 3 | Finance wealth — five asset classes, FIFO lots, valuations, emergency fund, net worth, XIRR | ⏳ not started |
-| 4 | Finance conversational AI — provider selection gate, finance tools | ⏳ not started |
+| 4 | Finance conversational AI — provider selection gate, finance tools | 🟡 Gemini chosen; expense drafts via stub (Gemini off until paid tier) |
 | 5 | Fitness MVP — library, plans, templates, diary, fitness tools | 🟡 schema, plan versions, skips, session lifecycle; PRs, progression, consistency in `fitness-core`; no UI |
 | 6 | Advanced analytics, cross-module dashboard; Habits/Journal only once stable | ⏳ |
